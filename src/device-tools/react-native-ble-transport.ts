@@ -366,6 +366,7 @@ export class ReactNativeBleLooiTransport implements LooiTransport {
         if (settled) return;
         settled = true;
         subscription?.remove();
+        console.warn(`[LOOI BLE] Bluetooth did not become ready within ${this.bleStateTimeoutMs}ms (state: ${currentState})`);
         reject(new Error(`Bluetooth did not become ready within ${this.bleStateTimeoutMs}ms`));
       }, this.bleStateTimeoutMs);
 
@@ -463,10 +464,16 @@ export async function scanLooiRobotCandidates(options: {
   const scanTimeoutMs = options.scanTimeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS;
 
   try {
-    await waitForManagerPoweredOn(manager, DEFAULT_BLE_STATE_TIMEOUT_MS);
+    try {
+      await waitForManagerPoweredOn(manager, DEFAULT_BLE_STATE_TIMEOUT_MS);
+    } catch (error) {
+      console.warn(`[LOOI BLE Scan] Bluetooth never became ready: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
 
     return await new Promise<ScannedLooiRobot[]>((resolve, reject) => {
       const candidates = new Map<string, ScannedLooiRobot>();
+      const seenDeviceIds = new Set<string>();
       let settled = false;
       const finish = (callback: () => void) => {
         if (settled) return;
@@ -474,7 +481,10 @@ export async function scanLooiRobotCandidates(options: {
         void manager.stopDeviceScan().finally(callback);
       };
       const timeout = setTimeout(() => {
-        finish(() => resolve([...candidates.values()].sort(compareScannedRobots)));
+        finish(() => {
+          console.log(`[LOOI BLE Scan] BLE scan finished: ${seenDeviceIds.size} devices seen, ${candidates.size} matched`);
+          resolve([...candidates.values()].sort(compareScannedRobots));
+        });
       }, scanTimeoutMs);
 
       manager
@@ -487,15 +497,28 @@ export async function scanLooiRobotCandidates(options: {
           (error, device) => {
             if (error) {
               clearTimeout(timeout);
+              console.warn(`[LOOI BLE Scan] Scan error: ${error.message ?? String(error)}`);
               finish(() => reject(error));
               return;
             }
-            if (!device || !isLikelyLooiRobot(device, robotName)) return;
+            if (!device) return;
+            // Observability: one throttled line per unique discovered device, so
+            // field logs can distinguish "nothing advertising" from "advertising
+            // but name/UUID did not match". Matching itself is unchanged.
+            if (!seenDeviceIds.has(device.id)) {
+              seenDeviceIds.add(device.id);
+              const uuids = device.serviceUUIDs?.map((uuid) => shortUuid(uuid)).join(",") ?? "";
+              console.log(
+                `[LOOI BLE Scan] device name=${device.name ?? ""} localName=${device.localName ?? ""} uuids=[${uuids}] rssi=${device.rssi ?? "?"} id=${device.id.slice(0, 8)}`
+              );
+            }
+            if (!isLikelyLooiRobot(device, robotName)) return;
             candidates.set(device.id, toScannedRobot(device));
           },
         )
         .catch((error) => {
           clearTimeout(timeout);
+          console.warn(`[LOOI BLE Scan] Failed to start scan: ${error instanceof Error ? error.message : String(error)}`);
           finish(() => reject(error));
         });
     });
@@ -538,6 +561,7 @@ async function waitForManagerPoweredOn(manager: BleManager, timeoutMs: number): 
       if (settled) return;
       settled = true;
       subscription?.remove();
+      console.warn(`[LOOI BLE] Bluetooth did not become ready within ${timeoutMs}ms (state: ${currentState})`);
       reject(new Error(`Bluetooth did not become ready within ${timeoutMs}ms`));
     }, timeoutMs);
 

@@ -536,17 +536,25 @@ export default function SettingsScreen() {
   return (
     <DeviceShell title={t("settings.title")} eyebrow="MY LOOI">
       <View style={styles.summaryGrid}>
-        <Summary
-          label="OpenAI"
-          value={!openAiKeyConfigured
-            ? t("settings.summary.keyNeeded")
-            : openAiApiStatus.kind === "no_credits"
-              ? t("settings.openAiStatus.no_credits")
-              : openAiApiStatus.kind === "invalid_key"
-                ? t("settings.openAiStatus.invalid_key")
-                : t("settings.summary.keySaved")}
-          ok={openAiKeyConfigured && openAiApiStatus.kind !== "no_credits" && openAiApiStatus.kind !== "invalid_key"}
-        />
+        {preferences.realtimeProvider === "gemini" ? (
+          <Summary
+            label="Google Gemini"
+            value={geminiKeyConfigured ? t("settings.summary.keySaved") : t("settings.summary.keyNeeded")}
+            ok={geminiKeyConfigured}
+          />
+        ) : (
+          <Summary
+            label="OpenAI"
+            value={!openAiKeyConfigured
+              ? t("settings.summary.keyNeeded")
+              : openAiApiStatus.kind === "no_credits"
+                ? t("settings.openAiStatus.no_credits")
+                : openAiApiStatus.kind === "invalid_key"
+                  ? t("settings.openAiStatus.invalid_key")
+                  : t("settings.summary.keySaved")}
+            ok={openAiKeyConfigured && openAiApiStatus.kind !== "no_credits" && openAiApiStatus.kind !== "invalid_key"}
+          />
+        )}
         <Summary label={t("settings.summary.local")} value={sharedReady ? t("settings.summary.localReady") : t("settings.summary.localCheck")} ok={sharedReady} />
         <Summary label={t("settings.summary.robot")} value={robotRuntime.connected ? t("settings.summary.robotConnected") : robotUi.saved ? t("settings.summary.robotSaved") : t("settings.summary.robotNone")} ok={robotRuntime.connected} neutral={!robotRuntime.connected} />
       </View>

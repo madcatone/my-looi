@@ -409,4 +409,28 @@ assert.ok(pcmSourceV2.includes("closed before opening"), "waitForWebSocketOpen m
 const statusSource = fs.readFileSync("src/openai/openai-api-status.ts", "utf8");
 assert.ok(statusSource.includes('"api key not valid"'), "the shared classifier must map Gemini's close reason to invalid_key");
 
+// 15. Field-observability round: BLE scan logging, provider-aware Settings
+// summary card, provider-neutral connection messages.
+const bleSource = fs.readFileSync("src/device-tools/react-native-ble-transport.ts", "utf8");
+assert.ok(bleSource.includes("BLE scan finished: ${seenDeviceIds.size} devices seen, ${candidates.size} matched"), "scan end must summarize devices seen vs matched");
+assert.ok(bleSource.includes("[LOOI BLE Scan] device name="), "each discovered device must be logged (name/localName/uuids/rssi/id)");
+assert.ok(bleSource.includes("device.id.slice(0, 8)"), "device ids must be truncated in logs");
+assert.ok(bleSource.includes("[LOOI BLE Scan] Scan error:"), "scan callback errors must console.warn");
+assert.ok(bleSource.includes("[LOOI BLE Scan] Failed to start scan:"), "scan start failures must console.warn");
+assert.ok(bleSource.includes("[LOOI BLE Scan] Bluetooth never became ready:"), "powered-on wait failure must console.warn");
+assert.ok(bleSource.includes("isLikelyLooiRobot(device, robotName)) return;"), "match predicate must stay unchanged (observability only)");
+const settingsSourceV2 = fs.readFileSync("app/(tabs)/settings.tsx", "utf8");
+assert.ok(
+  settingsSourceV2.includes('preferences.realtimeProvider === "gemini" ? (\n          <Summary\n            label="Google Gemini"'),
+  "the summary card must reflect the active provider, not always OpenAI"
+);
+assert.ok(
+  settingsSourceV2.includes('ok={geminiKeyConfigured}'),
+  "gemini-mode summary must key off the Gemini key state, not the OpenAI key state"
+);
+const pcmSourceV3 = fs.readFileSync("src/voice/realtime-pcm-conversation.ts", "utf8");
+assert.equal(pcmSourceV3.includes("OpenAI Realtime PCM WebSocket did not open"), false, "shared open-timeout message must be provider-neutral");
+assert.equal(pcmSourceV3.includes("OpenAI Realtime PCM WebSocket failed to open"), false, "shared open-failure message must be provider-neutral");
+assert.ok(pcmSourceV3.includes("Realtime voice connection did not open within"), "timeout message must use provider-neutral wording");
+
 console.log("Gemini Live provider behavior: PASS");

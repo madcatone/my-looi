@@ -25,7 +25,7 @@ assert.equal(
   crypto.createHash("sha256")
     .update(read("src/voice/realtime-pcm-conversation.ts"))
     .digest("hex"),
-  "5bdd12aa9b26fcbde37b2e77b22fa1a3e58e896cac27c1c0205cc3995d739d1c"
+  "5284f2c3f78097795f434dbedc2e393900c52db4472748375073ce9ce1baeb74"
 );
 
 assert.equal(

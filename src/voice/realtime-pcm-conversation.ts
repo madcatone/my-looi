@@ -652,7 +652,7 @@ export class RealtimePcmConversationService {
   private waitForWebSocketOpen(ws: WebSocket): Promise<void> {
     if (ws.readyState === WebSocket.OPEN) return Promise.resolve();
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`OpenAI Realtime PCM WebSocket did not open within ${WS_OPEN_TIMEOUT_MS}ms`)), WS_OPEN_TIMEOUT_MS);
+      const timer = setTimeout(() => reject(new Error(`Realtime voice connection did not open within ${WS_OPEN_TIMEOUT_MS}ms`)), WS_OPEN_TIMEOUT_MS);
       const previousOpen = ws.onopen;
       const previousError = ws.onerror;
       const previousClose = ws.onclose;
@@ -667,7 +667,7 @@ export class RealtimePcmConversationService {
       ws.onerror = (event) => {
         clearTimeout(timer);
         previousError?.call(ws, event);
-        reject(new Error("OpenAI Realtime PCM WebSocket failed to open"));
+        reject(new Error("Realtime voice connection failed to open"));
       };
       ws.onclose = (event) => {
         clearTimeout(timer);
