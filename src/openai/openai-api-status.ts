@@ -69,7 +69,7 @@ export function classifyOpenAiError(code: unknown, message: unknown): OpenAiApiS
   if (combined.includes("credit_balance_exhausted") || combined.includes("insufficient_quota") || combined.includes("no credits")) {
     return "no_credits";
   }
-  if (combined.includes("invalid_api_key") || combined.includes("incorrect api key") || combined.includes("authentication") || combined.includes("http 401")) {
+  if (combined.includes("invalid_api_key") || combined.includes("incorrect api key") || combined.includes("api key not valid") || combined.includes("authentication") || combined.includes("http 401")) {
     return "invalid_key";
   }
   return null;

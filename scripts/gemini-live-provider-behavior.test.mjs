@@ -268,4 +268,145 @@ assert.ok(onboardingSource.includes("settings.voiceProvider"), "step title/chip 
 assert.equal(onboardingSource.includes('Section title="OpenAI Realtime"'), false, "step 1 must not hardcode the OpenAI-only section");
 assert.equal(onboardingSource.includes("Google AI Studio API key"), true, "Gemini branch must hint where the key comes from");
 
+// 13. Transport behavior: binary server frames decode into events, lifecycle
+// events carry code/reason to the service, and failures are never silent.
+// Gemini Live answers over binary WebSocket frames (JSON content); OpenAI uses
+// text frames, so the transport must normalize before parsing.
+await (async () => {
+  class FakeGeminiSocket {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    static CLOSING = 2;
+    static CLOSED = 3;
+    constructor(url) {
+      this.url = url;
+      this.sent = [];
+      this.readyState = FakeGeminiSocket.CONNECTING;
+      this.binaryType = null;
+      this.onopen = null;
+      this.onmessage = null;
+      this.onerror = null;
+      this.onclose = null;
+    }
+    send(data) { this.sent.push(String(data)); }
+    close() { this.readyState = FakeGeminiSocket.CLOSED; }
+  }
+
+  const realWebSocket = globalThis.WebSocket;
+  const realWarn = console.warn;
+  const realLog = console.log;
+  const logs = [];
+  globalThis.WebSocket = FakeGeminiSocket;
+  console.warn = (...args) => logs.push(args.map(String).join(" "));
+  console.log = (...args) => logs.push(args.map(String).join(" "));
+  try {
+    const transportModule = compileTs("src/gemini/gemini-live-transport.ts");
+    const apiKey = "AIzaTESTKEY123456789012345";
+    const transport = new transportModule.GeminiLiveTransport(apiKey, "gemini-3.8-live");
+    assert.equal(transport.socket.binaryType, "arraybuffer", "RN must be asked for ArrayBuffer binary frames");
+    assert.ok(transport.socket.url.includes("key="), "fake socket must have received the authenticated URL");
+
+    let opened = false;
+    transport.onopen = () => { opened = true; };
+    transport.socket.onopen({});
+    assert.equal(opened, true, "onopen must forward to the service");
+    assert.equal(transport.readyState, 1, "transport readyState must track OPEN");
+
+    // Client -> server stays a text frame carrying the Gemini setup message.
+    transport.send(JSON.stringify({ type: "session.update", session: { instructions: "You are LOOI.", tools: [] } }));
+    const lastSent = transport.socket.sent[transport.socket.sent.length - 1];
+    assert.equal(typeof lastSent, "string", "outgoing frames must stay text (JSON) frames");
+    assert.equal(JSON.parse(lastSent).setup.model, "models/gemini-3.8-live", "model id must round-trip on the wire");
+
+    // Server -> client arrives as an ArrayBuffer binary frame of JSON text.
+    const received = [];
+    transport.onmessage = (event) => received.push(JSON.parse(String(event.data)));
+    const wire = JSON.stringify({ setupComplete: {} });
+    transport.socket.onmessage({ data: new TextEncoder().encode(wire).buffer });
+    assert.deepEqual(
+      received.map((event) => event.type),
+      ["session.created", "session.updated"],
+      "an ArrayBuffer setupComplete frame must surface as readiness events"
+    );
+
+    // Typed-array payloads must decode through the same path.
+    transport.socket.onmessage({ data: new TextEncoder().encode(JSON.stringify({ goAway: {} })) });
+    assert.equal(received.length, 2, "goAway is log-only and must not emit conversation events");
+
+    // Blob payloads (RN builds without binaryType support) decode via text().
+    transport.socket.onmessage({ data: new Blob([wire]) });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(
+      received.slice(-2).map((event) => event.type),
+      ["session.created", "session.updated"],
+      "a Blob setupComplete frame must surface as readiness events"
+    );
+
+    // Direct decode-helper unit: multi-byte UTF-8 survives decode.
+    assert.equal(
+      transportModule.decodeArrayBufferToUtf8(new TextEncoder().encode("Луи, наклонись")),
+      "Луи, наклонись"
+    );
+    // And through the manual fallback when TextDecoder is unavailable (Hermes).
+    const realTextDecoder = globalThis.TextDecoder;
+    delete globalThis.TextDecoder;
+    try {
+      assert.equal(
+        transportModule.decodeArrayBufferToUtf8(new TextEncoder().encode("Луи, наклонись")),
+        "Луи, наклонись",
+        "manual fallback decoder must handle 2-byte Cyrillic"
+      );
+      assert.equal(
+        transportModule.decodeArrayBufferToUtf8(new TextEncoder().encode("a🚀b")),
+        "a🚀b",
+        "manual fallback decoder must handle 4-byte code points via surrogate pairs"
+      );
+    } finally {
+      globalThis.TextDecoder = realTextDecoder;
+    }
+
+    // Undecodable/unparseable frames must warn — never silently drop.
+    const warnsBefore = logs.length;
+    transport.socket.onmessage({ data: new Uint8Array([0xff, 0xfe, 0xfd, 0x01]).buffer });
+    assert.ok(
+      logs.slice(warnsBefore).some((line) => line.includes("Non-JSON") || line.includes("Failed to decode")),
+      "an invalid frame must produce a console.warn, not a silent return"
+    );
+    // A healthy frame still flows after a poisoned one.
+    transport.socket.onmessage({ data: new TextEncoder().encode(wire).buffer });
+    assert.equal(received[received.length - 2].type, "session.created");
+
+    // Close carries code + reason through to the service (bad-key case: 1007).
+    let closed = null;
+    transport.onclose = (event) => { closed = event; };
+    transport.socket.onclose({ code: 1007, reason: "API key not valid. Please pass a valid API key." });
+    assert.equal(closed?.code, 1007, "close code must reach the service handler");
+    assert.equal(closed?.reason, "API key not valid. Please pass a valid API key.", "server reason must reach the service handler");
+    assert.equal(transport.readyState, 3, "transport readyState must track CLOSED");
+    assert.ok(
+      logs.some((line) => line.includes("[GeminiLive] WebSocket closed code=1007")),
+      "close must be visible in logcat-style console output"
+    );
+    assert.ok(
+      logs.every((line) => !line.includes(apiKey)),
+      "transport logs must never contain the API key"
+    );
+  } finally {
+    globalThis.WebSocket = realWebSocket;
+    console.warn = realWarn;
+    console.log = realLog;
+  }
+})();
+
+// 14. Close-before-ready surfacing: both providers ride the same handler; the
+// Gemini 1007 reason classifies as invalid_key; waitForWebSocketOpen rejects
+// on close-before-open.
+const pcmSourceV2 = fs.readFileSync("src/voice/realtime-pcm-conversation.ts", "utf8");
+assert.ok(pcmSourceV2.includes("pcm-websocket-closed-before-ready"), "a close before session-ready must be recorded as its own failure event");
+assert.ok(pcmSourceV2.includes('const startupIssue = issue === "no_credits" || issue === "invalid_key" ? issue : "service_error";'), "close-before-ready must enter the error state even when unclassified");
+assert.ok(pcmSourceV2.includes('setRealtimeReadiness("error")'), "close-before-ready must leave the Connecting state");
+assert.ok(pcmSourceV2.includes("closed before opening"), "waitForWebSocketOpen must reject when the socket closes before the handshake completes");
+const statusSource = fs.readFileSync("src/openai/openai-api-status.ts", "utf8");
+assert.ok(statusSource.includes('"api key not valid"'), "the shared classifier must map Gemini's close reason to invalid_key");
+
 console.log("Gemini Live provider behavior: PASS");

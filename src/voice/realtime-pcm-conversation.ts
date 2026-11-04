@@ -611,15 +611,39 @@ export class RealtimePcmConversationService {
     };
     ws.onclose = (event) => {
       if (!this.active || this.stopping) return;
-      const issue = classifyOpenAiError(event.code, event.reason);
+      const code = (event as { code?: number }).code;
+      const reason = (event as { reason?: string }).reason ?? "";
+      const issue = classifyOpenAiError(code, reason);
+      if (!this.configured) {
+        // The socket died before the session ever became ready. Gemini Live
+        // accepts the WebSocket handshake with any key and then closes 1007
+        // with a human-readable reason; OpenAI behaves the same way for
+        // rejected ephemeral tokens. Surface the failure (code + reason)
+        // instead of silently dropping back to idle while the UI shows
+        // "Connecting".
+        const startupIssue = issue === "no_credits" || issue === "invalid_key" ? issue : "service_error";
+        useConversationStore.getState().setRealtimeIssue(startupIssue);
+        useConversationStore.getState().setRealtimeReadiness("error");
+        if (issue === "no_credits" || issue === "invalid_key") {
+          void setOpenAiApiStatus(issue, reason);
+        }
+        recordDiagnosticEvent("realtime", "pcm-websocket-closed-before-ready", {
+          code,
+          reason,
+          issue: startupIssue,
+          provider: this.provider,
+        });
+        void this.stop("websocket-closed-before-ready");
+        return;
+      }
       if (issue === "no_credits" || issue === "invalid_key") {
         useConversationStore.getState().setRealtimeIssue(issue);
         useConversationStore.getState().setRealtimeReadiness("error");
-        void setOpenAiApiStatus(issue, event.reason);
+        void setOpenAiApiStatus(issue, reason);
       }
       recordDiagnosticEvent("realtime", "pcm-websocket-closed", {
-        code: event.code,
-        reason: event.reason,
+        code,
+        reason,
       });
       void this.stop("websocket-closed");
     };
@@ -631,8 +655,12 @@ export class RealtimePcmConversationService {
       const timer = setTimeout(() => reject(new Error(`OpenAI Realtime PCM WebSocket did not open within ${WS_OPEN_TIMEOUT_MS}ms`)), WS_OPEN_TIMEOUT_MS);
       const previousOpen = ws.onopen;
       const previousError = ws.onerror;
+      const previousClose = ws.onclose;
       ws.onopen = (event) => {
         clearTimeout(timer);
+        ws.onopen = previousOpen;
+        ws.onerror = previousError;
+        ws.onclose = previousClose;
         previousOpen?.call(ws, event);
         resolve();
       };
@@ -640,6 +668,12 @@ export class RealtimePcmConversationService {
         clearTimeout(timer);
         previousError?.call(ws, event);
         reject(new Error("OpenAI Realtime PCM WebSocket failed to open"));
+      };
+      ws.onclose = (event) => {
+        clearTimeout(timer);
+        previousClose?.call(ws, event);
+        const close = event as { code?: number; reason?: string } | undefined;
+        reject(new Error(`Realtime PCM WebSocket closed before opening (code ${close?.code ?? "unknown"}${close?.reason ? `: ${close.reason}` : ""})`));
       };
     });
   }
