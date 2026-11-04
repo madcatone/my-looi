@@ -10,8 +10,11 @@ import {
   createOpenAiRealtimeClientSecret,
   createOpenAiRealtimeEphemeralWebSocket,
 } from "../openai/openai-api-key";
+import { getGeminiApiKey } from "../gemini/gemini-api-key";
+import { DEFAULT_GEMINI_LIVE_MODEL_ID } from "../gemini/gemini-live-models";
+import { createGeminiLiveTransport } from "../gemini/gemini-live-transport";
 import { useConversationStore } from "../store/conversation";
-import { useUserStore } from "../store/user";
+import { useUserStore, type RealtimeProvider } from "../store/user";
 import { captureExplicitLookHereStill } from "../vision/look-here";
 import { classifyOpenAiError, setOpenAiApiStatus } from "../openai/openai-api-status";
 import {
@@ -123,6 +126,8 @@ export class RealtimePcmConversationService {
   private captureLevelWindowFirstSequence: number | null = null;
   private sessionMemoryContext: string | undefined;
   private sessionModel = REALTIME_MODEL;
+  private provider: RealtimeProvider = "openai";
+  private sessionGeminiModel = DEFAULT_GEMINI_LIVE_MODEL_ID;
   private playbackGainClippedSamples = 0;
   private playbackGainTotalSamples = 0;
 
@@ -234,6 +239,8 @@ export class RealtimePcmConversationService {
     this.captureLevelWindowGainClippedSamples = 0;
     this.captureLevelWindowFirstSequence = null;
     this.sessionModel = useUserStore.getState().preferences.realtimeModelId;
+    this.provider = useUserStore.getState().preferences.realtimeProvider;
+    this.sessionGeminiModel = useUserStore.getState().preferences.geminiModelId;
     this.playbackGainClippedSamples = 0;
     this.playbackGainTotalSamples = 0;
 
@@ -249,8 +256,9 @@ export class RealtimePcmConversationService {
     useUserStore.getState().setVoiceState("listening");
 
     recordDiagnosticEvent("realtime", "pcm-session-start", {
-      transport: "openai-websocket-app-owned-pcm",
-      model: this.sessionModel,
+      transport: this.provider === "gemini" ? "gemini-live-websocket-app-owned-pcm" : "openai-websocket-app-owned-pcm",
+      provider: this.provider,
+      model: this.provider === "gemini" ? this.sessionGeminiModel : this.sessionModel,
       source: detection?.source ?? "manual",
       captureRequested: "VOICE_COMMUNICATION/16000/mono/pcm16/explicit-platform-aec",
       playbackRequested: "USAGE_VOICE_COMMUNICATION/24000/mono/pcm16",
@@ -291,12 +299,21 @@ export class RealtimePcmConversationService {
         this.sessionMemoryContext
       );
       const sessionConfig = (sessionUpdate.session ?? {}) as Record<string, unknown>;
-      const clientSecret = await createOpenAiRealtimeClientSecret(sessionConfig);
-      if (!this.active) return;
-      recordDiagnosticEvent("realtime", "pcm-ephemeral-secret-created", {
-        expiresAt: clientSecret.expiresAt,
-        persisted: false,
-      });
+      // Gemini Live authenticates with the saved API key directly over the
+      // WebSocket; only the OpenAI path mints a short-lived ephemeral secret.
+      let openAiClientSecret: { value: string; expiresAt: number | null } | null = null;
+      let geminiApiKey: string | null = null;
+      if (this.provider === "gemini") {
+        geminiApiKey = await getGeminiApiKey();
+        if (!geminiApiKey) throw new Error("Gemini provider is selected but no Gemini API key is saved");
+      } else {
+        openAiClientSecret = await createOpenAiRealtimeClientSecret(sessionConfig);
+        if (!this.active) return;
+        recordDiagnosticEvent("realtime", "pcm-ephemeral-secret-created", {
+          expiresAt: openAiClientSecret.expiresAt,
+          persisted: false,
+        });
+      }
 
       // Preserve the proven v2.1.86 mic handoff guardrail. Quiesce the entire
       // wake/fallback path while Classic capture is still alive, then release
@@ -343,17 +360,29 @@ export class RealtimePcmConversationService {
       this.bindNativeAudioEvents();
       useConversationStore.getState().setRealtimeIssue(null);
 
-      const ws = createOpenAiRealtimeEphemeralWebSocket(clientSecret.value, this.sessionModel);
+      const ws = this.provider === "gemini" && geminiApiKey
+        ? createGeminiLiveTransport(geminiApiKey, this.sessionGeminiModel)
+        : createOpenAiRealtimeEphemeralWebSocket(openAiClientSecret?.value ?? "", this.sessionModel);
       this.webSocket = ws;
       this.bindWebSocket(ws);
       await this.waitForWebSocketOpen(ws);
       if (!this.active) return;
       this.send(sessionUpdate);
-      recordDiagnosticEvent("realtime", "pcm-openai-connected", {
-        transport: "websocket",
-        auth: "ephemeral-subprotocol",
-        model: this.sessionModel,
-      });
+      if (this.provider === "gemini") {
+        recordDiagnosticEvent("realtime", "pcm-gemini-connected", {
+          transport: "websocket",
+          auth: "api-key-query-param",
+          model: this.sessionGeminiModel,
+          inputPcmRate: 16_000,
+          outputPcmRate: 24_000,
+        });
+      } else {
+        recordDiagnosticEvent("realtime", "pcm-openai-connected", {
+          transport: "websocket",
+          auth: "ephemeral-subprotocol",
+          model: this.sessionModel,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const issue = classifyOpenAiError("", message);
@@ -516,8 +545,10 @@ export class RealtimePcmConversationService {
       if (Math.abs(sample) * REALTIME_UPLINK_GAIN > 1) gainClippedSamples += 1;
     }
     const gainedSamples = applyRealtimeUplinkGain(samples);
-    const resampled = resample16kTo24k(gainedSamples);
-    const audio = bytesToBase64(floatSamplesToPcm16Bytes(resampled));
+    // OpenAI Realtime takes 24 kHz uplink PCM; Gemini Live input is natively
+    // 16 kHz, so the Gemini path sends the captured rate without resampling.
+    const uplinkSamples = this.provider === "gemini" ? gainedSamples : resample16kTo24k(gainedSamples);
+    const audio = bytesToBase64(floatSamplesToPcm16Bytes(uplinkSamples));
     this.send({ type: "input_audio_buffer.append", audio });
 
     const frames = Number.isFinite(event.frames) && event.frames > 0 ? event.frames : 0;
@@ -547,7 +578,8 @@ export class RealtimePcmConversationService {
         sourceRate: event.sampleRate,
         sourceFrames: event.frames,
         windowFrames,
-        openAiRate: 24_000,
+        uplinkRate: this.provider === "gemini" ? 16_000 : 24_000,
+        provider: this.provider,
         firstSequence: this.captureLevelWindowFirstSequence,
         sequence: event.sequence,
       });
@@ -654,8 +686,8 @@ export class RealtimePcmConversationService {
       this.pendingPreroll = null;
       if (preroll && preroll.sampleRate === 16_000 && preroll.samples.length > 0) {
         const gainedPreroll = applyRealtimeUplinkGain(preroll.samples);
-        const resampled = resample16kTo24k(gainedPreroll);
-        this.send({ type: "input_audio_buffer.append", audio: bytesToBase64(floatSamplesToPcm16Bytes(resampled)) });
+        const uplinkPreroll = this.provider === "gemini" ? gainedPreroll : resample16kTo24k(gainedPreroll);
+        this.send({ type: "input_audio_buffer.append", audio: bytesToBase64(floatSamplesToPcm16Bytes(uplinkPreroll)) });
         recordDiagnosticEvent("realtime", "pcm-startup-preroll-seeded", {
           durationMs: Math.round((preroll.samples.length / preroll.sampleRate) * 1000),
           uplinkGain: REALTIME_UPLINK_GAIN,

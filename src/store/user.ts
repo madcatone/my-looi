@@ -15,6 +15,7 @@ import {
   type ResponseLanguage,
 } from "../language/response-language";
 import { DEFAULT_REALTIME_MODEL_ID, normalizeRealtimeModelId } from "../openai/realtime-models";
+import { DEFAULT_GEMINI_LIVE_MODEL_ID, normalizeGeminiLiveModelId } from "../gemini/gemini-live-models";
 import {
   DEFAULT_LISTENING_LANGUAGE,
   normalizeListeningLanguage,
@@ -35,6 +36,13 @@ export type VoiceState =
   | "speaking";
 
 export type ConversationMode = "realtime" | "realtime_pcm";
+
+/** Voice LLM provider driving new Realtime PCM sessions. OpenAI stays the default. */
+export type RealtimeProvider = "openai" | "gemini";
+
+export function normalizeRealtimeProvider(value: unknown): RealtimeProvider {
+  return value === "gemini" ? "gemini" : "openai";
+}
 
 export type AmbientMotionLevel = "off" | "subtle" | "normal" | "lively";
 
@@ -178,6 +186,10 @@ export type UserPreferences = {
   ttsEnabled: boolean;
   /** OpenAI Realtime conversation model selected for new sessions. */
   realtimeModelId: string;
+  /** Voice LLM provider for new Realtime PCM sessions; OpenAI remains the default. */
+  realtimeProvider: RealtimeProvider;
+  /** Gemini Live model used when realtimeProvider is "gemini". Fixed list; no model-list endpoint. */
+  geminiModelId: string;
   ttsVoiceId: string;
   ttsStyleId: TtsStyleId;
   ttsSpeed: number;
@@ -249,6 +261,8 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   language: DEFAULT_RESPONSE_LANGUAGE,
   ttsEnabled: true,
   realtimeModelId: DEFAULT_REALTIME_MODEL_ID,
+  realtimeProvider: "openai",
+  geminiModelId: DEFAULT_GEMINI_LIVE_MODEL_ID,
   ttsVoiceId: DEFAULT_TTS_VOICE_ID,
   ttsStyleId: DEFAULT_TTS_STYLE_ID,
   ttsSpeed: DEFAULT_TTS_SPEED,
@@ -290,6 +304,8 @@ function loadPreferences(): UserPreferences {
       language: normalizeResponseLanguage(preferences.language),
       ttsEnabled: preferences.ttsEnabled !== false,
       realtimeModelId: normalizeRealtimeModelId((preferences as Partial<UserPreferences>).realtimeModelId),
+      realtimeProvider: normalizeRealtimeProvider((preferences as Partial<UserPreferences>).realtimeProvider),
+      geminiModelId: normalizeGeminiLiveModelId((preferences as Partial<UserPreferences>).geminiModelId),
       ttsVoiceId:
         typeof preferences.ttsVoiceId === "string" &&
         isSupportedRealtimeVoiceId(preferences.ttsVoiceId)
@@ -335,6 +351,8 @@ function loadPreferences(): UserPreferences {
       (preferences as Partial<UserPreferences>).interfaceLanguage !== normalized.interfaceLanguage ||
       (preferences as Partial<UserPreferences>).listeningLanguage !== normalized.listeningLanguage ||
       (preferences as Partial<UserPreferences>).realtimeModelId !== normalized.realtimeModelId ||
+      (preferences as Partial<UserPreferences>).realtimeProvider !== normalized.realtimeProvider ||
+      (preferences as Partial<UserPreferences>).geminiModelId !== normalized.geminiModelId ||
       preferences.ttsVoiceId !== normalized.ttsVoiceId ||
       preferences.ttsStyleId !== normalized.ttsStyleId ||
       (preferences as Partial<UserPreferences>).voiceOutputGain !== normalized.voiceOutputGain ||
@@ -399,6 +417,14 @@ export const useUserStore = create<UserState>((set) => ({
           prefs.realtimeModelId === undefined
             ? state.preferences.realtimeModelId
             : normalizeRealtimeModelId(prefs.realtimeModelId),
+        realtimeProvider:
+          prefs.realtimeProvider === undefined
+            ? state.preferences.realtimeProvider
+            : normalizeRealtimeProvider(prefs.realtimeProvider),
+        geminiModelId:
+          prefs.geminiModelId === undefined
+            ? state.preferences.geminiModelId
+            : normalizeGeminiLiveModelId(prefs.geminiModelId),
         ttsSpeed:
           prefs.ttsSpeed === undefined
             ? state.preferences.ttsSpeed

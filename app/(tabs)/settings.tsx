@@ -33,6 +33,13 @@ import {
 } from "@/src/openai/openai-api-key";
 import { getOpenAiApiStatus, type OpenAiApiStatus } from "@/src/openai/openai-api-status";
 import {
+  clearGeminiApiKey,
+  hasGeminiApiKey,
+  saveGeminiApiKey,
+  validateGeminiApiKey,
+} from "@/src/gemini/gemini-api-key";
+import { GEMINI_LIVE_MODEL_OPTIONS, formatGeminiLiveModelName } from "@/src/gemini/gemini-live-models";
+import {
   DEFAULT_REALTIME_MODEL_ID,
   formatConversationCostPerMinute,
   formatRealtimeModelName,
@@ -115,6 +122,10 @@ export default function SettingsScreen() {
   const [openAiModels, setOpenAiModels] = useState<OpenAiRealtimeModel[]>([]);
   const [openAiModelsBusy, setOpenAiModelsBusy] = useState(false);
   const [openAiModelsResult, setOpenAiModelsResult] = useState<string | null>(null);
+  const [geminiKeyConfigured, setGeminiKeyConfigured] = useState(false);
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [geminiKeyBusy, setGeminiKeyBusy] = useState(false);
+  const [geminiKeyResult, setGeminiKeyResult] = useState<string | null>(null);
   const [voicePreviewBusy, setVoicePreviewBusy] = useState<string | null>(null);
   const [voicePreviewResult, setVoicePreviewResult] = useState<string | null>(null);
   const [modelStatus, setModelStatus] = useState<SharedModelStatus | null>(null);
@@ -137,6 +148,10 @@ export default function SettingsScreen() {
   const refreshOpenAi = useCallback(() => {
     void hasOpenAiApiKey().then(setOpenAiKeyConfigured).catch(() => setOpenAiKeyConfigured(false));
     void getOpenAiApiStatus().then(setOpenAiApiStatusState).catch(() => setOpenAiApiStatusState({ kind: "unknown", checkedAt: null }));
+  }, []);
+
+  const refreshGemini = useCallback(() => {
+    void hasGeminiApiKey().then(setGeminiKeyConfigured).catch(() => setGeminiKeyConfigured(false));
   }, []);
 
   const refreshOpenAiModels = useCallback(async () => {
@@ -198,11 +213,12 @@ export default function SettingsScreen() {
     void voiceRuntime.suspendMainScreenConversation("settings-focused");
     refreshOpenAi();
     void refreshOpenAiModels();
+    void refreshGemini();
     void refreshModels();
     void refreshMemory();
     void refreshRobot();
     return () => recordDiagnosticEvent("navigation", "settings-blurred");
-  }, [refreshMemory, refreshModels, refreshOpenAi, refreshOpenAiModels, refreshRobot]));
+  }, [refreshMemory, refreshModels, refreshGemini, refreshOpenAi, refreshOpenAiModels, refreshRobot]));
 
   useEffect(() => subscribeLooiRobotRuntimeState(() => setRobotRuntime(getLooiRobotRuntimeState())), []);
 
@@ -243,6 +259,33 @@ export default function SettingsScreen() {
           setOpenAiApiStatusState({ kind: "unknown", checkedAt: null });
           setOpenAiKeyResult(t("settings.keyDeleted"));
         }).finally(() => setOpenAiKeyBusy(false));
+      } },
+    ]);
+  }, [t]);
+
+  const saveGeminiKey = useCallback(async () => {
+    if (geminiKeyBusy) return;
+    setGeminiKeyBusy(true);
+    setGeminiKeyResult(null);
+    try {
+      await saveGeminiApiKey(validateGeminiApiKey(geminiKeyInput));
+      setGeminiKeyInput("");
+      setGeminiKeyConfigured(true);
+      setGeminiKeyResult(t("settings.keySavedLocal"));
+    } catch (error) {
+      setGeminiKeyResult(t("common.error", { message: error instanceof Error ? error.message : String(error) }));
+    } finally { setGeminiKeyBusy(false); }
+  }, [geminiKeyBusy, geminiKeyInput, t]);
+
+  const deleteGeminiKey = useCallback(() => {
+    Alert.alert(t("settings.deleteGeminiKeyTitle"), t("settings.deleteGeminiKeyBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.delete"), style: "destructive", onPress: () => {
+        setGeminiKeyBusy(true);
+        void clearGeminiApiKey().then(() => {
+          setGeminiKeyConfigured(false);
+          setGeminiKeyResult(t("settings.keyDeleted"));
+        }).finally(() => setGeminiKeyBusy(false));
       } },
     ]);
   }, [t]);
@@ -517,7 +560,34 @@ export default function SettingsScreen() {
         <ButtonRow>{RESPONSE_LANGUAGE_OPTIONS.map((item) => <SmallChoice key={item.id} selected={preferences.language === item.id} label={item.shortLabel} onPress={() => updatePreferences({ language: item.id })} />)}</ButtonRow>
       </Section>
 
-      <Section title="OpenAI">
+      <Section title={t("settings.voiceProvider")}>
+        <Text style={styles.help}>{t("settings.providerHelp")}</Text>
+        <ButtonRow>
+          <SmallChoice selected={preferences.realtimeProvider === "openai"} label="OpenAI" onPress={() => updatePreferences({ realtimeProvider: "openai" })} />
+          <SmallChoice selected={preferences.realtimeProvider === "gemini"} label="Google Gemini" onPress={() => updatePreferences({ realtimeProvider: "gemini" })} />
+        </ButtonRow>
+        {preferences.realtimeProvider === "gemini" ? <>
+          <Text style={styles.help}>{t("settings.geminiKeyHelp")}</Text>
+          <TextInput value={geminiKeyInput} onChangeText={setGeminiKeyInput} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder={geminiKeyConfigured ? t("settings.newGeminiKey") : "Google AI Studio API key"} placeholderTextColor={looiTheme.muted} style={styles.input} />
+          <ButtonRow>
+            <Action label={geminiKeyBusy ? t("settings.saving") : geminiKeyConfigured ? t("common.replace") : t("common.save")} onPress={saveGeminiKey} disabled={geminiKeyBusy || !geminiKeyInput.trim()} />
+            {geminiKeyConfigured ? <Action label={t("common.delete")} onPress={deleteGeminiKey} secondary /> : null}
+          </ButtonRow>
+          {geminiKeyResult ? <Text style={styles.result}>{geminiKeyResult}</Text> : null}
+          <View style={styles.subCard}>
+            <Text style={styles.label}>{t("settings.geminiModel")}</Text>
+            <Text style={styles.help}>{t("settings.geminiModelsHelp")}</Text>
+            {GEMINI_LIVE_MODEL_OPTIONS.map((option) => {
+              const note = option.note === "recommended"
+                ? t("settings.geminiModelRecommended")
+                : option.note === "quality"
+                  ? t("settings.geminiModelQuality")
+                  : t("settings.geminiModelPrevious");
+              const tone = option.note === "recommended" ? "recommended" : option.note === "quality" ? "quality" : "previous";
+              return <Choice key={option.id} selected={preferences.geminiModelId === option.id} label={formatGeminiLiveModelName(option.id)} detail={note} tone={tone} onPress={() => updatePreferences({ geminiModelId: option.id })} />;
+            })}
+          </View>
+        </> : <>
         <Text style={styles.help}>{t("settings.openAiHelp")}</Text>
         <TextInput value={openAiKeyInput} onChangeText={setOpenAiKeyInput} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder={openAiKeyConfigured ? t("settings.newKey") : "OpenAI API key"} placeholderTextColor={looiTheme.muted} style={styles.input} />
         <ButtonRow>
@@ -571,6 +641,7 @@ export default function SettingsScreen() {
           {openAiModelsResult ? <Text style={styles.result}>{openAiModelsResult}</Text> : null}
           <Text style={styles.help}>{t("settings.costDisclaimer")}</Text>
         </View>
+        </>}
       </Section>
 
       <Section title={t("settings.voice")}>
