@@ -246,4 +246,26 @@ const settingsSource = fs.readFileSync("app/(tabs)/settings.tsx", "utf8");
 assert.ok(settingsSource.includes('realtimeProvider: "gemini"'), "settings must offer the Gemini provider switch");
 assert.ok(settingsSource.includes("GEMINI_LIVE_MODEL_OPTIONS"), "settings must render the fixed Gemini model list");
 
+// 12. Onboarding: step 1 is provider-aware; either provider key satisfies the readiness gate.
+const readinessSource = fs.readFileSync("src/setup/setup-readiness.ts", "utf8");
+assert.ok(readinessSource.includes("hasGeminiApiKey()"), "readiness must probe the Gemini SecureStore key");
+assert.ok(
+  readinessSource.includes("const voiceKeyConfigured = openAiKeyConfigured || geminiKeyConfigured;"),
+  "any provider key must satisfy the voice-key readiness gate"
+);
+assert.ok(
+  readinessSource.includes("const requiredReady = voiceKeyConfigured && modelsReady && microphoneReady;"),
+  "onboarding completion must not hard-require the OpenAI key"
+);
+const onboardingSource = fs.readFileSync("app/onboarding.tsx", "utf8");
+assert.ok(onboardingSource.includes("saveGeminiApiKey(validateGeminiApiKey"), "onboarding must validate+save the Gemini key");
+assert.ok(onboardingSource.includes("clearGeminiApiKey()"), "onboarding must delete the Gemini key");
+assert.ok(onboardingSource.includes('updatePreferences({ realtimeProvider: "gemini" })'), "onboarding step 1 must offer the provider switch");
+assert.ok(onboardingSource.includes('updatePreferences({ realtimeProvider: "openai" })'), "onboarding step 1 must allow switching back to OpenAI");
+assert.ok(onboardingSource.includes('return readiness.voiceKeyConfigured;'), "step-1 completion must track either provider key");
+assert.ok(onboardingSource.includes("settings.geminiKeyHelp"), "Gemini branch must render the localized Gemini help text");
+assert.ok(onboardingSource.includes("settings.voiceProvider"), "step title/chip must use the localized provider label");
+assert.equal(onboardingSource.includes('Section title="OpenAI Realtime"'), false, "step 1 must not hardcode the OpenAI-only section");
+assert.equal(onboardingSource.includes("Google AI Studio API key"), true, "Gemini branch must hint where the key comes from");
+
 console.log("Gemini Live provider behavior: PASS");

@@ -13,6 +13,11 @@ import {
   validateOpenAiApiKey,
 } from "@/src/openai/openai-api-key";
 import {
+  clearGeminiApiKey,
+  saveGeminiApiKey,
+  validateGeminiApiKey,
+} from "@/src/gemini/gemini-api-key";
+import {
   computeSetupReadiness,
   type SetupReadiness,
   type SetupStep,
@@ -24,8 +29,8 @@ import { useUiText } from "@/src/i18n/use-ui-text";
 import { INTERFACE_LANGUAGE_OPTIONS } from "@/src/i18n/ui-language";
 import { getLocalizedModelDownloadStage, type UiStringKey } from "@/src/i18n/ui-strings";
 
-const setupSteps: { id: SetupStep; labelKey: UiStringKey | null }[] = [
-  { id: "openai", labelKey: null },
+const setupSteps: { id: SetupStep; labelKey: UiStringKey }[] = [
+  { id: "openai", labelKey: "settings.voiceProvider" },
   { id: "models", labelKey: "onboarding.step.models" },
   { id: "permissions", labelKey: "onboarding.step.permissions" },
   { id: "done", labelKey: "onboarding.step.done" },
@@ -64,9 +69,9 @@ export default function OnboardingScreen() {
   const [activeStep, setActiveStep] = useState<SetupStep>(normalizeSetupStep(params.step));
   const [readiness, setReadiness] = useState<SetupReadiness | null>(null);
   const [loadingReadiness, setLoadingReadiness] = useState(true);
-  const [openAiKeyInput, setOpenAiKeyInput] = useState("");
-  const [openAiBusy, setOpenAiBusy] = useState(false);
-  const [openAiError, setOpenAiError] = useState<string | null>(null);
+  const [keyInput, setKeyInput] = useState("");
+  const [keyBusy, setKeyBusy] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [modelProgress, setModelProgress] = useState<SherpaModelDownloadProgress | null>(null);
   const [modelBusy, setModelBusy] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -74,6 +79,7 @@ export default function OnboardingScreen() {
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const { language: interfaceLanguageForText, t } = useUiText();
   const interfaceLanguage = useUserStore((state) => state.preferences.interfaceLanguage);
+  const realtimeProvider = useUserStore((state) => state.preferences.realtimeProvider);
   const updatePreferences = useUserStore((state) => state.updatePreferences);
 
   const refreshReadiness = useCallback(async () => {
@@ -104,28 +110,35 @@ export default function OnboardingScreen() {
     router.setParams({ step });
   }, [router]);
 
-  const saveOpenAiKey = useCallback(async () => {
-    if (openAiBusy) return;
-    setOpenAiBusy(true);
-    setOpenAiError(null);
+  const saveProviderKey = useCallback(async () => {
+    if (keyBusy) return;
+    setKeyBusy(true);
+    setKeyError(null);
     try {
-      const key = validateOpenAiApiKey(openAiKeyInput);
-      await saveOpenAiApiKey(key);
-      setOpenAiKeyInput("");
+      if (realtimeProvider === "gemini") {
+        await saveGeminiApiKey(validateGeminiApiKey(keyInput));
+      } else {
+        await saveOpenAiApiKey(validateOpenAiApiKey(keyInput));
+      }
+      setKeyInput("");
       await refreshReadiness();
       goToStep("models");
     } catch (error) {
-      setOpenAiError(error instanceof Error ? error.message : t("onboarding.keySaveFailed"));
+      setKeyError(error instanceof Error ? error.message : t("onboarding.keySaveFailed"));
     } finally {
-      setOpenAiBusy(false);
+      setKeyBusy(false);
     }
-  }, [goToStep, openAiBusy, openAiKeyInput, refreshReadiness, t]);
+  }, [goToStep, keyBusy, keyInput, realtimeProvider, refreshReadiness, t]);
 
-  const replaceOpenAiKey = useCallback(async () => {
-    await clearOpenAiApiKey();
+  const replaceProviderKey = useCallback(async () => {
+    if (realtimeProvider === "gemini") {
+      await clearGeminiApiKey();
+    } else {
+      await clearOpenAiApiKey();
+    }
     await refreshReadiness();
-    setOpenAiError(null);
-  }, [refreshReadiness]);
+    setKeyError(null);
+  }, [realtimeProvider, refreshReadiness]);
 
   const downloadModels = useCallback(async () => {
     if (modelBusy) return;
@@ -177,6 +190,9 @@ export default function OnboardingScreen() {
   }, [goToStep, refreshReadiness, router]);
 
   const canFinish = readiness?.requiredReady ?? false;
+  const providerKeyConfigured = Boolean(
+    realtimeProvider === "gemini" ? readiness?.geminiKeyConfigured : readiness?.openAiKeyConfigured,
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -213,7 +229,7 @@ export default function OnboardingScreen() {
             const complete = isStepComplete(step.id, readiness);
             return (
               <Pressable key={step.id} onPress={() => goToStep(step.id)} style={[styles.step, active && styles.stepActive]}>
-                <Text style={[styles.stepText, active && styles.stepTextActive]}>{complete ? "✓ " : ""}{step.labelKey ? t(step.labelKey) : "OpenAI"}</Text>
+                <Text style={[styles.stepText, active && styles.stepTextActive]}>{complete ? "✓ " : ""}{t(step.labelKey)}</Text>
               </Pressable>
             );
           })}
@@ -223,24 +239,44 @@ export default function OnboardingScreen() {
           {loadingReadiness && !readiness ? <ActivityIndicator /> : null}
 
           {activeStep === "openai" ? (
-            <Section title="OpenAI Realtime">
-              <Text style={styles.help}>{t("onboarding.apiHelp")}</Text>
-              <StatusRow label={t("onboarding.key")} ready={Boolean(readiness?.openAiKeyConfigured)} readyText={t("onboarding.keySaved")} pendingText={t("onboarding.keyNeeded")} />
+            <Section title={t("settings.voiceProvider")}>
+              <Text style={styles.help}>
+                {realtimeProvider === "gemini" ? t("settings.geminiKeyHelp") : t("onboarding.apiHelp")}
+              </Text>
+              <View style={styles.interfaceLanguageChoices}>
+                <Pressable
+                  onPress={() => updatePreferences({ realtimeProvider: "openai" })}
+                  style={[styles.languageChoice, realtimeProvider === "openai" && styles.languageChoiceSelected]}
+                >
+                  <Text style={[styles.languageChoiceText, realtimeProvider === "openai" && styles.languageChoiceTextSelected]}>OpenAI</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => updatePreferences({ realtimeProvider: "gemini" })}
+                  style={[styles.languageChoice, realtimeProvider === "gemini" && styles.languageChoiceSelected]}
+                >
+                  <Text style={[styles.languageChoiceText, realtimeProvider === "gemini" && styles.languageChoiceTextSelected]}>Google Gemini</Text>
+                </Pressable>
+              </View>
+              <StatusRow label={t("onboarding.key")} ready={providerKeyConfigured} readyText={t("onboarding.keySaved")} pendingText={t("onboarding.keyNeeded")} />
               <TextInput
-                value={openAiKeyInput}
-                onChangeText={setOpenAiKeyInput}
-                placeholder={readiness?.openAiKeyConfigured ? t("onboarding.newKey") : "OpenAI API key"}
+                value={keyInput}
+                onChangeText={setKeyInput}
+                placeholder={
+                  realtimeProvider === "gemini"
+                    ? providerKeyConfigured ? t("settings.newGeminiKey") : "Google AI Studio API key"
+                    : providerKeyConfigured ? t("onboarding.newKey") : "OpenAI API key"
+                }
                 placeholderTextColor={looiTheme.muted}
                 secureTextEntry
                 autoCapitalize="none"
                 autoCorrect={false}
                 style={styles.input}
               />
-              {openAiError ? <Text style={styles.error}>{openAiError}</Text> : null}
+              {keyError ? <Text style={styles.error}>{keyError}</Text> : null}
               <View style={styles.actions}>
-                <PrimaryButton label={openAiBusy ? t("onboarding.saving") : readiness?.openAiKeyConfigured ? t("onboarding.replaceKey") : t("onboarding.saveKey")} onPress={saveOpenAiKey} disabled={openAiBusy || !openAiKeyInput.trim()} />
-                {readiness?.openAiKeyConfigured ? <SecondaryButton label={t("onboarding.deleteKey")} onPress={replaceOpenAiKey} /> : null}
-                {readiness?.openAiKeyConfigured ? <SecondaryButton label={t("common.continue")} onPress={() => goToStep("models")} /> : null}
+                <PrimaryButton label={keyBusy ? t("onboarding.saving") : providerKeyConfigured ? t("onboarding.replaceKey") : t("onboarding.saveKey")} onPress={saveProviderKey} disabled={keyBusy || !keyInput.trim()} />
+                {providerKeyConfigured ? <SecondaryButton label={t("onboarding.deleteKey")} onPress={replaceProviderKey} /> : null}
+                {providerKeyConfigured ? <SecondaryButton label={t("common.continue")} onPress={() => goToStep("models")} /> : null}
               </View>
             </Section>
           ) : null}
@@ -280,7 +316,7 @@ export default function OnboardingScreen() {
 
           {activeStep === "done" ? (
             <Section title={t("onboarding.doneTitle")}>
-              <StatusRow label="OpenAI" ready={Boolean(readiness?.openAiKeyConfigured)} readyText={t("settings.summary.keySaved")} pendingText={t("onboarding.keyNotConfigured")} />
+              <StatusRow label={voiceProviderStatusLabel(realtimeProvider, readiness)} ready={Boolean(readiness?.voiceKeyConfigured)} readyText={t("settings.summary.keySaved")} pendingText={t("onboarding.keyNotConfigured")} />
               <StatusRow label={t("onboarding.step.models")} ready={Boolean(readiness?.modelsReady)} readyText={t("onboarding.modelsReady")} pendingText={t("onboarding.modelsNotReady")} />
               <StatusRow label={t("onboarding.microphone")} ready={Boolean(readiness?.microphoneReady)} readyText={t("onboarding.micAllowed")} pendingText={t("onboarding.noAccess")} />
               <StatusRow label={t("settings.summary.robot")} ready={Boolean(readiness?.robotReady)} readyText={t("common.ready")} pendingText={t("onboarding.optional")} neutral />
@@ -302,9 +338,16 @@ function normalizeSetupStep(step?: string | string[]): SetupStep {
   return "openai";
 }
 
+function voiceProviderStatusLabel(provider: "openai" | "gemini", readiness: SetupReadiness | null): string {
+  const geminiReady = Boolean(readiness?.geminiKeyConfigured);
+  const openAiReady = Boolean(readiness?.openAiKeyConfigured);
+  if (provider === "gemini") return geminiReady || !openAiReady ? "Google Gemini" : "OpenAI";
+  return openAiReady || !geminiReady ? "OpenAI" : "Google Gemini";
+}
+
 function isStepComplete(step: SetupStep, readiness: SetupReadiness | null): boolean {
   if (!readiness) return false;
-  if (step === "openai") return readiness.openAiKeyConfigured;
+  if (step === "openai") return readiness.voiceKeyConfigured;
   if (step === "models") return readiness.modelsReady;
   if (step === "permissions") return readiness.microphoneReady;
   return readiness.requiredReady && readiness.onboardingCompleted;

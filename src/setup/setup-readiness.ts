@@ -3,6 +3,7 @@ import { getRecordingPermissionsAsync } from "expo-audio";
 import { getLooiRobotRuntimeState } from "@/src/device-tools/looi-robot";
 import { getSavedLooiRobot } from "@/src/device-tools/looi-robot-autoconnect";
 import { hasOpenAiApiKey } from "@/src/openai/openai-api-key";
+import { hasGeminiApiKey } from "@/src/gemini/gemini-api-key";
 import { checkAllSherpaModelReadiness, type SherpaModelCheck } from "@/src/voice/sherpa-models";
 import { getSetupStorageState, type SetupSkipState } from "./setup-storage";
 
@@ -17,6 +18,9 @@ export type SetupModelReadiness = {
 
 export type SetupReadiness = {
   openAiKeyConfigured: boolean;
+  geminiKeyConfigured: boolean;
+  /** Any voice provider key is saved (OpenAI or Gemini). Gates onboarding completion. */
+  voiceKeyConfigured: boolean;
   modelsReady: boolean;
   modelStatus: SetupModelReadiness | null;
   microphoneReady: boolean;
@@ -33,8 +37,9 @@ export function areSherpaModelsReady(status: SetupModelReadiness): boolean {
 
 export async function computeSetupReadiness(): Promise<SetupReadiness> {
   const storageState = getSetupStorageState();
-  const [openAiKeyConfigured, modelResult, microphoneReady, robotReady] = await Promise.all([
+  const [openAiKeyConfigured, geminiKeyConfigured, modelResult, microphoneReady, robotReady] = await Promise.all([
     hasOpenAiApiKey(),
+    hasGeminiApiKey(),
     checkAllSherpaModelReadiness().catch((error) => {
       console.warn("[Setup] Failed to check Sherpa model readiness:", error);
       return null;
@@ -44,10 +49,13 @@ export async function computeSetupReadiness(): Promise<SetupReadiness> {
   ]);
 
   const modelsReady = modelResult ? areSherpaModelsReady(modelResult) : false;
-  const requiredReady = openAiKeyConfigured && modelsReady && microphoneReady;
+  const voiceKeyConfigured = openAiKeyConfigured || geminiKeyConfigured;
+  const requiredReady = voiceKeyConfigured && modelsReady && microphoneReady;
 
   return {
     openAiKeyConfigured,
+    geminiKeyConfigured,
+    voiceKeyConfigured,
     modelsReady,
     modelStatus: modelResult,
     microphoneReady,
@@ -55,16 +63,16 @@ export async function computeSetupReadiness(): Promise<SetupReadiness> {
     skipped: storageState.skipped,
     onboardingCompleted: storageState.onboardingCompleted,
     requiredReady,
-    nextStep: getNextSetupStep({ openAiKeyConfigured, modelsReady, microphoneReady }),
+    nextStep: getNextSetupStep({ voiceKeyConfigured, modelsReady, microphoneReady }),
   };
 }
 
 function getNextSetupStep(state: {
-  openAiKeyConfigured: boolean;
+  voiceKeyConfigured: boolean;
   modelsReady: boolean;
   microphoneReady: boolean;
 }): SetupStep {
-  if (!state.openAiKeyConfigured) return "openai";
+  if (!state.voiceKeyConfigured) return "openai";
   if (!state.modelsReady) return "models";
   if (!state.microphoneReady) return "permissions";
   return "done";
