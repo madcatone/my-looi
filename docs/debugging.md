@@ -1,7 +1,7 @@
 # Field debugging notes
 
 Practical debugging playbook for this app on a real robot + Android device,
-distilled from the v2.1.152–154 work (native freeze, BLE reconnects, voice
+distilled from the v2.1.152–156 work (native freeze, BLE reconnects, voice
 interception). Each entry: symptom → diagnosis → fix → lesson.
 
 ## 1. Instrument the decision point before shipping a guess
@@ -22,7 +22,10 @@ degrees."` (address never spoken — user drops it mid-session).
 **Lesson**: when a fix depends on what an external system (STT, server,
 sensor) actually said, add observability at the boundary *first* and let one
 round of real data pick the fix. The v2.1.153 widening was aimed at imagined
-transcripts.
+transcripts. The same discipline applies to docs: a fresh-context read-back
+of `voice-commands.md` caught the doc claiming English politeness lead-ins
+were stripped when the code only stripped Russian ones (`LOOI, please
+forward` really did fall to the LLM) — fixed in v2.1.156.
 
 ## 2. Native UI freeze: never unmount an on-screen `<Text>` in a tap handler
 
@@ -82,11 +85,13 @@ Observed robot/BLE facts:
   app **without a clean BLE disconnect** — the robot keeps the dead link and
   refuses new ones. Auto-connect then fails repeatedly with
   `[BleError: Operation was cancelled]`.
-- Recovery ladder: restart the app (fixes it within 1–2 tries once the robot
-  notices the dropped link) → power-cycle the robot (always works). A running
-  app reconnects on its own when the robot power-cycles (the disconnect
-  handler retries), so **check the log before restarting the app** — an eager
-  restart can kill a connection that just recovered.
+- Recovery ladder: restart the app (`adb shell am force-stop
+  io.github.razor79.mylooi` then relaunch, or tap the icon) — fixes it within
+  1–2 tries once the robot notices the dropped link → power-cycle the robot
+  (always works). A running app reconnects on its own when the robot
+  power-cycles (the disconnect handler retries), so **check the log before
+  restarting the app** — an eager restart can kill a connection that just
+  recovered.
 
 **Lesson**: after every install, expect one reconnect dance; verify
 `[LOOI BLE] Robot connected and handshake complete` in the log before

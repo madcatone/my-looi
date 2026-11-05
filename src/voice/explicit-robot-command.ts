@@ -127,7 +127,7 @@ function stripNaturalCommandLeadIns(command: string): string {
   // Address-at-start remains mandatory. These fillers are accepted only AFTER
   // a valid "Луи/Робот" address so natural forms like "Робот, давай назад"
   // remain deterministic physical commands rather than broad conversation.
-  const leadIn = /^(?:(?:ну\s+)?давай(?:-ка)?|ну-ка|теперь|а\s+теперь|ладно|хорошо|окей|пожалуйста)\s+/iu;
+  const leadIn = /^(?:(?:ну\s+)?давай(?:-ка)?|ну-ка|теперь|а\s+теперь|ладно|хорошо|окей|пожалуйста|please|okay|ok)\s+/iu;
   for (let i = 0; i < 3; i += 1) {
     const next = value.replace(leadIn, "");
     if (next === value) break;
