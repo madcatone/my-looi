@@ -16,7 +16,7 @@ export type ExplicitRobotCommandConfig = {
 
 // Narrow STT recovery aliases are accepted only in the address position and
 // still require the remainder to parse as a deterministic physical command.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "loui", "looey", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "loui", "looey", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/ё/g, "е").replace(/[’'`]/g, "").replace(/[^a-zа-яіїєґ0-9\s]/giu, " ").replace(/\s+/g, " ").trim();
@@ -109,7 +109,7 @@ function normalizeKnownGluedRobotAddress(text: string): string {
   // (for example "Луикивни три раза"). Only split known physical-command stems so
   // arbitrary conversational words beginning with "луи" are not broadened.
   return text.trim().replace(
-    /^(луи|луй|луни|луї|луі|макс|max|робот|robot|уи|уй|рога|looi|louie|loui|looey)(?=(?:кивни|кивай|стоп|стой|спи|засни|потанцуй|потанцюй|танцуй|танцюй|dance|впер[её]д|назад|влево|вправо|налево|направо|развернись))/iu,
+    /^(луи|луй|луни|луї|луі|макс|max|робот|robot|уи|уй|рога|looi|louie|louis|loui|looey)(?=(?:кивни|кивай|стоп|стой|спи|засни|потанцуй|потанцюй|танцуй|танцюй|dance|впер[её]д|назад|влево|вправо|налево|направо|развернись))/iu,
     "$1 "
   );
 }
@@ -188,6 +188,49 @@ export function parseExplicitRobotCommand(text: string, config?: ExplicitRobotCo
     return { kind: "turn", direction: "right", degrees: 90 };
   }
 
+  return null;
+}
+
+/**
+ * Addressless in-session commands. Inside an active realtime voice session the
+ * user already tapped to open the microphone, so the wake gesture replaces the
+ * spoken address — but users still expect "turn 180 degrees" to work mid-chat
+ * (observed on the Gemini provider: addressless commands are the dominant
+ * real-world phrasing, and every one of them previously fell through to the
+ * LLM, which answers "I can only chat").
+ *
+ * Safety stays deterministic: accept ONLY whole-utterance verb-led imperatives,
+ * so ordinary conversation cannot reach the wheels ("let's go forward with the
+ * plan" fails the full match; "go ahead" passes). Bare directions and bare
+ * numbers stay address-only — a standalone "right" or "180" answering a chat
+ * question must never move the robot. English first because that is the
+ * observed session language; ru/uk in-session forms can follow the same
+ * full-utterance pattern when needed.
+ */
+export function parseSessionRobotCommand(text: string, config?: ExplicitRobotCommandConfig): ExplicitRobotCommand | null {
+  const command = stripNaturalCommandLeadIns(normalizeMatchText(normalizeKnownGluedRobotAddress(text)).replace(/^please\s+/i, "")).trim();
+  if (!command) return null;
+
+  if (/^(?:turn|rotate|spin)\s+(?:left|right)(?:\s+please)?$/iu.test(command)) {
+    return { kind: "turn", direction: /(?:^|\s)left(?=$|\s)/iu.test(command) ? "left" : "right", degrees: 90 };
+  }
+  if (
+    /^(?:turn\s+around|turn\s+back\s+around|make\s+a\s+u\s*turn|u\s*turn)(?:\s+please)?$/iu.test(command) ||
+    /^(?:turn|rotate|spin)\s+(?:180|one\s+eighty|one\s+hundred(?:\s+and)?\s+eighty)(?:\s+degrees?)?(?:\s+please)?$/iu.test(command)
+  ) {
+    // Clockwise/right is the deterministic default for a 180° turn.
+    return { kind: "turn", direction: "right", degrees: 180 };
+  }
+  if (/^(?:go|drive|move)\s+(?:forward|ahead|straight)(?:\s+please)?$/iu.test(command)) {
+    return { kind: "move", direction: "forward" };
+  }
+  if (/^(?:go|drive|move|come)\s+(?:back|backward|reverse)(?:\s+please)?$/iu.test(command)) {
+    return { kind: "move", direction: "backward" };
+  }
+
+  // Custom phrases keep their addressed requirement even in-session: without
+  // the address they are conversation text, not robot commands.
+  void config;
   return null;
 }
 

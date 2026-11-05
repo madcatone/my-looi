@@ -11,6 +11,7 @@ import { useUserStore, type UserPreferences } from "../store/user";
 import {
   containsEmergencyStopWord,
   parseExplicitRobotCommand,
+  parseSessionRobotCommand,
   type ExplicitRobotCommand,
 } from "./explicit-robot-command";
 
@@ -42,7 +43,11 @@ export function parseRealtimePhysicalCommand(
     customVoiceCommands: preferences.customVoiceCommands,
   };
   if (containsEmergencyStopWord(transcript, config)) return { kind: "emergency-stop" };
-  const command = parseExplicitRobotCommand(transcript, config);
+  // Addressed commands stay the primary path. Inside this live PCM session the
+  // wake gesture already replaced the spoken address, so fall back to the
+  // full-utterance in-session parser for verb-led imperatives ("turn 180
+  // degrees", "go ahead") — conversation-length text can never match it.
+  const command = parseExplicitRobotCommand(transcript, config) ?? parseSessionRobotCommand(transcript, config);
   return command ? { kind: "explicit", command } : null;
 }
 

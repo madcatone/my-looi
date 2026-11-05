@@ -30,7 +30,7 @@ for (const alias of ['"looi"', '"louie"', '"loui"', '"looey"']) {
   assert.ok(parser.includes(alias), `BUILTIN_ADDRESS_ALIASES must include ${alias}`);
 }
 // The glued-address splitter must know the same family.
-assert.ok(parser.includes("|looi|louie|loui|looey)(?="), "glued-address splitter must include the English wake-name family");
+assert.ok(parser.includes("|looi|louie|louis|loui|looey)(?="), "glued-address splitter must include the English wake-name family");
 
 // 2. 180° word forms must cover "one hundred (and) eighty" with optional degrees,
 //    and every pre-existing form must survive.
