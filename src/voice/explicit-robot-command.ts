@@ -16,7 +16,7 @@ export type ExplicitRobotCommandConfig = {
 
 // Narrow STT recovery aliases are accepted only in the address position and
 // still require the remainder to parse as a deterministic physical command.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "loui", "looey", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/ё/g, "е").replace(/[’'`]/g, "").replace(/[^a-zа-яіїєґ0-9\s]/giu, " ").replace(/\s+/g, " ").trim();
@@ -109,7 +109,7 @@ function normalizeKnownGluedRobotAddress(text: string): string {
   // (for example "Луикивни три раза"). Only split known physical-command stems so
   // arbitrary conversational words beginning with "луи" are not broadened.
   return text.trim().replace(
-    /^(луи|луй|луни|луї|луі|макс|max|робот|robot|уи|уй|рога)(?=(?:кивни|кивай|стоп|стой|спи|засни|потанцуй|потанцюй|танцуй|танцюй|dance|впер[её]д|назад|влево|вправо|налево|направо|развернись))/iu,
+    /^(луи|луй|луни|луї|луі|макс|max|робот|robot|уи|уй|рога|looi|louie|loui|looey)(?=(?:кивни|кивай|стоп|стой|спи|засни|потанцуй|потанцюй|танцуй|танцюй|dance|впер[её]д|назад|влево|вправо|налево|направо|развернись))/iu,
     "$1 "
   );
 }
@@ -154,8 +154,8 @@ export function parseExplicitRobotCommand(text: string, config?: ExplicitRobotCo
   }
 
   if (
-    /(?:^|\s)(?:развернись|разверни|повернись\s+обратно|поверни\s+обратно|розвернись|розверни|повернись\s+назад|turn\s+around|make\s+a\s+u\s*turn|u\s*turn)(?=$|[\s.,!?])/iu.test(command) ||
-    /(?:^|\s)(?:180|сто\s+восемьдесят|сто\s+вісімдесят|one\s+eighty)\s*(?:градус(?:ов|а)?|градус(?:ів|и)?|degrees?|°)?(?=$|[\s.,!?])/iu.test(command)
+    /(?:^|\s)(?:развернись|разверни|повернись\s+обратно|поверни\s+обратно|розвернись|розверни|повернись\s+назад|turn\s+around|turn\s+back\s+around|make\s+a\s+u\s*turn|u\s*turn)(?=$|[\s.,!?])/iu.test(command) ||
+    /(?:^|\s)(?:180|сто\s+восемьдесят|сто\s+вісімдесят|one\s+eighty|one\s+hundred(?:\s+and)?\s+eighty)\s*(?:градус(?:ов|а)?|градус(?:ів|и)?|degrees?|°)?(?=$|[\s.,!?])/iu.test(command)
   ) {
     // Clockwise/right is the deterministic default for a 180° turn.
     return { kind: "turn", direction: "right", degrees: 180 };
