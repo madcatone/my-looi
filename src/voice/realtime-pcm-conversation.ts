@@ -870,6 +870,12 @@ export class RealtimePcmConversationService {
         });
 
         const physicalCommand = parseRealtimePhysicalCommand(transcript, useUserStore.getState().preferences);
+        // Debug observability: interception verdicts were previously only visible
+        // in the exportable diagnostics archive, which made on-device triage of
+        // "robot says it cannot move" reports impossible without a share flow.
+        console.log(
+          `[RealtimeCmd] transcript=${JSON.stringify(transcript)} physical=${physicalCommand ? physicalCommand.kind : "miss"}`
+        );
         if (physicalCommand) {
           this.localPhysicalCommandInFlight = true;
           if (this.playbackActive) {

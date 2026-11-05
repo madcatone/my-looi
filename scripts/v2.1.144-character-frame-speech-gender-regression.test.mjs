@@ -43,7 +43,7 @@ assert.match(realtimeConfig, /REALTIME_UPLINK_GAIN = 2\.0/);
 
 const pcm = read("src/voice/realtime-pcm-conversation.ts");
 const pcmHash = crypto.createHash("sha256").update(pcm).digest("hex");
-assert.equal(pcmHash, "5284f2c3f78097795f434dbedc2e393900c52db4472748375073ce9ce1baeb74");
+assert.equal(pcmHash, "b3290d6282a91a856a77f43594f28fb7fb9a63b0a93fa99f85a855ba81753d11");
 const nativePcm = read("modules/local-realtime-audio-capture/android/src/main/java/com/superlooi/localrealtimecapture/RealtimePcmAudioModule.kt");
 const nativeHash = crypto.createHash("sha256").update(nativePcm).digest("hex");
 assert.equal(nativeHash, "667938b5ce3c8c2991b23f1d24661ef5db914a504482ded186f570c1614d77cc");
