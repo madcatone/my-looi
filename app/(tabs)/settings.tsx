@@ -339,7 +339,10 @@ export default function SettingsScreen() {
 
   const scanRobot = useCallback(async () => {
     if (robotUi.scanning || robotUi.busy) return;
-    setRobotUi((s) => ({ ...s, scanning: true, result: null }));
+    // Keep the previous result text mounted: removing the Text node on tap
+    // freezes the native UI thread (infinite relayout loop) on some devices.
+    // New results replace the text content, which is a safe in-place update.
+    setRobotUi((s) => ({ ...s, scanning: true }));
     try {
       const candidates = await scanLooiRobotCandidates();
       setRobotUi((s) => ({ ...s, candidates, result: candidates.length ? t("settings.robotFound", { count: candidates.length }) : t("settings.robotNotFound") }));
@@ -350,7 +353,9 @@ export default function SettingsScreen() {
 
   const connectRobot = useCallback(async (candidate?: LooiRobotCandidate) => {
     if (robotUi.busy) return;
-    setRobotUi((s) => ({ ...s, busy: true, result: null }));
+    // See scanRobot: never null out result on tap — Text removal can freeze
+    // the native layout pass. Errors and success replace the text instead.
+    setRobotUi((s) => ({ ...s, busy: true }));
     try {
       if (candidate) await connectSelectedLooiRobot({ id: candidate.id, name: candidate.name });
       else await forceReconnectSavedLooiRobot();
