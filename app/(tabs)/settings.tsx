@@ -586,7 +586,7 @@ export default function SettingsScreen() {
             <Action label={geminiKeyBusy ? t("settings.saving") : geminiKeyConfigured ? t("common.replace") : t("common.save")} onPress={saveGeminiKey} disabled={geminiKeyBusy || !geminiKeyInput.trim()} />
             {geminiKeyConfigured ? <Action label={t("common.delete")} onPress={deleteGeminiKey} secondary /> : null}
           </ButtonRow>
-          {geminiKeyResult ? <Text style={styles.result}>{geminiKeyResult}</Text> : null}
+          <Text style={geminiKeyResult ? styles.result : styles.resultHidden}>{geminiKeyResult ?? ""}</Text>
           <View style={styles.subCard}>
             <Text style={styles.label}>{t("settings.geminiModel")}</Text>
             <Text style={styles.help}>{t("settings.geminiModelsHelp")}</Text>
@@ -607,7 +607,7 @@ export default function SettingsScreen() {
           <Action label={openAiKeyBusy ? t("settings.saving") : openAiKeyConfigured ? t("common.replace") : t("common.save")} onPress={saveKey} disabled={openAiKeyBusy || !openAiKeyInput.trim()} />
           {openAiKeyConfigured ? <Action label={t("common.delete")} onPress={deleteKey} secondary /> : null}
         </ButtonRow>
-        {openAiKeyResult ? <Text style={styles.result}>{openAiKeyResult}</Text> : null}
+        <Text style={openAiKeyResult ? styles.result : styles.resultHidden}>{openAiKeyResult ?? ""}</Text>
         <View style={styles.subCard}>
           <Text style={styles.label}>{t("settings.openAiBalanceStatus")}</Text>
           <Text style={styles.value}>{t(`settings.openAiStatus.${openAiApiStatus.kind}` as any)}</Text>
@@ -651,7 +651,7 @@ export default function SettingsScreen() {
             </View> : null}
           </View> : null}
           {!openAiModelsBusy && openAiKeyConfigured && realtimeModels.length === 0 ? <Text style={styles.help}>{t("settings.modelsNotLoaded")}</Text> : null}
-          {openAiModelsResult ? <Text style={styles.result}>{openAiModelsResult}</Text> : null}
+          <Text style={openAiModelsResult ? styles.result : styles.resultHidden}>{openAiModelsResult ?? ""}</Text>
           <Text style={styles.help}>{t("settings.costDisclaimer")}</Text>
         </View>
         </>}
@@ -662,7 +662,7 @@ export default function SettingsScreen() {
         <DisclosureRow label={t("settings.voiceSelected", { voice: curatedVoices.find((voice) => voice.id === preferences.ttsVoiceId)?.name ?? preferences.ttsVoiceId })} expanded={voicesExpanded} onPress={() => setVoicesExpanded((value) => !value)} />
         {voicesExpanded ? <View style={styles.disclosureBody}>
           {curatedVoices.map((voice) => <VoiceChoice key={voice.id} selected={preferences.ttsVoiceId === voice.id} label={voice.name} detail={`${getLocalizedVoiceDescription(interfaceLanguage, voice.id, voice.description)}${voice.id === "marin" || voice.id === "cedar" ? ` · ${t("settings.voiceRecommended")}` : ""}`} onSelect={() => updatePreferences({ ttsVoiceId: voice.id })} onPreview={() => void previewVoice(voice.id)} previewing={voicePreviewBusy === voice.id} previewDisabled={Boolean(voicePreviewBusy) || !openAiKeyConfigured} />)}
-          {voicePreviewResult ? <Text style={styles.result}>{voicePreviewResult}</Text> : null}
+          <Text style={voicePreviewResult ? styles.result : styles.resultHidden}>{voicePreviewResult ?? ""}</Text>
         </View> : null}
         <Text style={styles.label}>{t("settings.speechGender")}</Text>
         <Text style={styles.help}>{t("settings.speechGenderHelp")}</Text>
@@ -713,7 +713,7 @@ export default function SettingsScreen() {
         </View>
         {robotUi.candidates.map((candidate) => <Choice key={candidate.id} selected={candidate.selected} label={candidate.name} detail={`${candidate.rssi ?? "?"} dBm`} onPress={() => void connectRobot(candidate)} />)}
         {robotUi.saved ? <Action label={t("settings.forgetRobot")} onPress={forgetRobot} secondary /> : null}
-        {robotUi.result ? <Text style={styles.result}>{robotUi.result}</Text> : null}
+        <Text style={robotUi.result ? styles.result : styles.resultHidden}>{robotUi.result ?? ""}</Text>
       </Section>
 
       <Section title={t("settings.helpGuide")}>
@@ -730,7 +730,7 @@ export default function SettingsScreen() {
           {downloadedUpdate ? <Action label={t("settings.installVersion", { version: downloadedUpdate.release.version })} onPress={() => void installUpdate()} disabled={updateBusy} /> : null}
         </ButtonRow>
         {downloadedUpdate ? <Action label={t("settings.installSettings")} onPress={() => void openInstallSettings()} disabled={updateBusy} secondary /> : null}
-        {updateResult ? <Text style={styles.result}>{updateResult}</Text> : null}
+        <Text style={updateResult ? styles.result : styles.resultHidden}>{updateResult ?? ""}</Text>
       </Section>
 
       <View style={styles.sectionWide}>
@@ -742,7 +742,7 @@ export default function SettingsScreen() {
             <Text style={styles.help}>{t("settings.backupFolder", { folder: backupFolder?.displayName || backupFolder?.providerName || t("common.notSelected") })}</Text>
             <ButtonRow><Action label={t("settings.chooseFolder")} onPress={chooseBackup} disabled={backupBusy} secondary /><Action label={t("settings.backupNow")} onPress={backupNow} disabled={backupBusy || !backupFolder} /><Action label={t("common.restore")} onPress={restoreNow} disabled={backupBusy || !backupFolder} secondary /></ButtonRow>
             {backupFolder ? <Action label={t("settings.forgetBackupFolder")} onPress={forgetBackupFolder} disabled={backupBusy} secondary /> : null}
-            {backupResult ? <Text style={styles.result}>{backupResult}</Text> : null}
+            <Text style={backupResult ? styles.result : styles.resultHidden}>{backupResult ?? ""}</Text>
           </View>
 
           <View style={styles.subCard}>
@@ -755,7 +755,7 @@ export default function SettingsScreen() {
               <Action label={t("settings.saveLocal")} onPress={() => void saveDiagnosticsToFolder()} disabled={diagnosticBusy || !diagnosticFolder} />
             </ButtonRow>
             <Action label={t("settings.clearDiagnostics")} onPress={() => void clearDiagnostics()} disabled={diagnosticBusy} secondary />
-            {diagnosticResult ? <Text style={styles.result}>{diagnosticResult}</Text> : null}
+            <Text style={diagnosticResult ? styles.result : styles.resultHidden}>{diagnosticResult ?? ""}</Text>
           </View>
 
           <View style={styles.subCard}>
@@ -979,7 +979,7 @@ function VoiceCommandsSettings() {
         <Text style={styles.help}>{t("settings.voiceCommandsTestHelp")}</Text>
         <TextInput value={testText} onChangeText={setTestText} placeholder={t("settings.voiceCommandsTestPlaceholder", { name: preferences.robotName })} placeholderTextColor={looiTheme.muted} style={styles.input} />
         <Action label={t("settings.voiceCommandsTestButton")} onPress={runSafeTest} disabled={!testText.trim()} secondary />
-        {testResult ? <Text style={styles.result}>{testResult}</Text> : null}
+        <Text style={testResult ? styles.result : styles.resultHidden}>{testResult ?? ""}</Text>
       </View> : null}
     </View> : null}
   </Section>;
@@ -1052,6 +1052,7 @@ const styles = StyleSheet.create({
   actionSecondaryText: { color: looiTheme.text, fontWeight: "700", fontSize: 12 },
   disabled: { opacity: 0.35 },
   result: { color: looiTheme.text, fontSize: 12 },
+  resultHidden: { display: "none" },
   error: { color: looiTheme.danger },
   ok: { color: looiTheme.ok },
   muted: { color: looiTheme.muted },
