@@ -17,15 +17,16 @@ export type ExplicitRobotCommandConfig = {
 // Narrow STT recovery aliases are accepted only in the address position and
 // still require the remainder to parse as a deterministic physical command.
 // "look"/"lewis"/"lou"/"luke"/"blue eye"/"zoe"/"dui"/"rui"/"luis"/"lui"/
-// "robar" are observed Gemini transcriptions of the wake name (on-device: the
+// "robar"/"ruin" are observed Gemini transcriptions of the wake name (on-device: the
 // same spoken "LOOI, …" came back as "Look.", "Lewis,", "Louis,", "blue eye",
-// "Zoe", "Dui", "Rui", "Luis", "Lui", "robar" on consecutive attempts —
+// "Zoe", "Dui", "Rui", "Luis", "Lui", "robar", "ruin" on consecutive attempts —
 // nondeterministic, no STT biasing available). ルイ (katakana) is
-// transliterated to "rui" in normalizeMatchText. Physical interception runs
+// transliterated to "rui" and Latin diacritics are NFD-folded in
+// normalizeMatchText. Physical interception runs
 // before the visual look-here parser, but "look" only reaches the wheels when
 // the remainder is itself a physical command — "look here"/"look at this"
 // still fall through to the visual path.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "ruin", "макс", "max", "робот", "robot", "robots", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
   return value.normalize("NFKC")
@@ -33,6 +34,11 @@ function normalizeMatchText(value: string): string {
     // (on-device: "ルイ go back"); transliterate before the script filter
     // would strip it to whitespace.
     .replace(/ルイ/gu, "rui")
+    // Latin diacritics fold to their base letter: on-device "Luís, turn
+    // right." had í replaced by the charset filter with a space, splitting
+    // the address into "lu s". NFD + mark stripping turns Luís→luis (an
+    // existing alias) instead. Cyrillic ё is handled below consistently.
+    .normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
     .toLocaleLowerCase()
     // English possessive clitic: "Robot's back" must address the robot, not
     // produce the non-alias "robots" after apostrophe stripping.
