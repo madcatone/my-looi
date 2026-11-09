@@ -17,16 +17,20 @@ export type ExplicitRobotCommandConfig = {
 // Narrow STT recovery aliases are accepted only in the address position and
 // still require the remainder to parse as a deterministic physical command.
 // "look"/"lewis"/"lou"/"luke"/"blue eye"/"zoe"/"dui"/"rui"/"luis"/"lui"/
-// "robar"/"ruin" are observed Gemini transcriptions of the wake name (on-device: the
-// same spoken "LOOI, …" came back as "Look.", "Lewis,", "Louis,", "blue eye",
-// "Zoe", "Dui", "Rui", "Luis", "Lui", "robar", "ruin" on consecutive attempts —
-// nondeterministic, no STT biasing available). ルイ (katakana) is
+// "robar"/"ruin"/"lo es"/"blue is"/"louise"/"blue east" are observed Gemini
+// transcriptions of the wake name (on-device: the same spoken "LOOI, …" came
+// back as "Look.", "Lewis,", "Louis,", "blue eye", "Zoe", "Dui", "Rui",
+// "Luis", "Lui", "robar", "ruin", "lo es", "blue is", "Louise", "Blue East"
+// on consecutive attempts — nondeterministic, no STT biasing available;
+// "blue eye/blue is/blue east" are one family, enumerated individually to
+// keep the strict-gate policy: no prefix wildcards). ルイ (katakana) is
 // transliterated to "rui" and Latin diacritics are NFD-folded in
-// normalizeMatchText. Physical interception runs
-// before the visual look-here parser, but "look" only reaches the wheels when
-// the remainder is itself a physical command — "look here"/"look at this"
-// still fall through to the visual path.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "ruin", "lo es", "blue is", "louise", "макс", "max", "робот", "robot", "robots", "уи", "уй", "рога"];
+// normalizeMatchText. Verb inflections ("Lewis turned left", "went back")
+// are accepted in MOVE_VERB_RE alongside the base forms. Physical
+// interception runs before the visual look-here parser, but "look" only
+// reaches the wheels when the remainder is itself a physical command —
+// "look here"/"look at this" still fall through to the visual path.
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "ruin", "lo es", "blue is", "blue east", "louise", "макс", "max", "робот", "robot", "robots", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
   return value.normalize("NFKC")
@@ -69,7 +73,11 @@ export function getExplicitRobotAddressedCommand(text: string, config?: Explicit
   return splitAddressedCommand(text, config)?.command ?? null;
 }
 
-const MOVE_VERB_RE = /(?:^|\s)(?:едь|езжай|поедь|проедь|двигайся|двинься|повернись|поверни|їдь|поїдь|рухайся|повернись|поверни|go|drive|move|turn)(?=$|[\s.,!?])/iu;
+// Verb inflections: on-device 2026-11-09 15:05–15:06 — "Lewis turned left."
+// and "Louise turned left." missed because only base forms matched. STT
+// roulette now hits the verb too, so past/-s/-ing forms join the base forms.
+// "went"/"drove" are irregular pasts of go/drive.
+const MOVE_VERB_RE = /(?:^|\s)(?:едь|езжай|поедь|проедь|двигайся|двинься|повернись|поверни|їдь|поїдь|рухайся|повернись|поверни|turn(?:ed|s|ing)?|go(?:es|ing)?|went|move(?:d|s|ing)?|drive(?:n|s|ing)?|drove)(?=$|[\s.,!?])/iu;
 
 function isBareDirectionCommand(command: string, variants: string): boolean {
   return new RegExp(`^(?:${variants})(?:\\s+(?:пожалуйста|немного|чуть(?:-чуть)?))?[.!?]*$`, "i").test(command.trim());
@@ -178,7 +186,7 @@ export function parseExplicitRobotCommand(text: string, config?: ExplicitRobotCo
   }
 
   if (
-    /(?:^|\s)(?:развернись|разверни|повернись\s+обратно|поверни\s+обратно|розвернись|розверни|повернись\s+назад|turn\s+around|turn\s+back\s+around|make\s+a\s+u\s*turn|u\s*turn)(?=$|[\s.,!?])/iu.test(command) ||
+    /(?:^|\s)(?:развернись|разверни|повернись\s+обратно|поверни\s+обратно|розвернись|розверни|повернись\s+назад|turn(?:ed|s|ing)?\s+around|turn(?:ed|s|ing)?\s+back\s+around|make\s+a\s+u\s*turn|u\s*turn)(?=$|[\s.,!?])/iu.test(command) ||
     /(?:^|\s)(?:180|сто\s+восемьдесят|сто\s+вісімдесят|one\s+eighty|one\s+hundred(?:\s+and)?\s+eighty)\s*(?:градус(?:ов|а)?|градус(?:ів|и)?|degrees?|°)?(?=$|[\s.,!?])/iu.test(command)
   ) {
     // Clockwise/right is the deterministic default for a 180° turn.
