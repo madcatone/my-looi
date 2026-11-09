@@ -95,6 +95,13 @@ ladder, adb/landscape, build/test traps). This file is the story and the map.
   "Lewis turned left" missed because MOVE_VERB_RE only had base forms.
 - `bf37a19` **v2.1.166 — forward never moved**: root cause below. Fail-open
   for silent TOF + `recordDiagnosticEvent` mirrored to logcat as `[Diag] …`.
+- **v2.1.167 — native `captureStill` at last**: the v2.1.151 upstream squash
+  shipped the JS half of visual look-here but never the Kotlin half, so the
+  feature threw at runtime. Implemented the Camera2 still pipeline in
+  `LocalFaceAttentionModule.kt` (temp YUV warmup for AE/AF/AWB convergence →
+  one in-memory `TEMPLATE_STILL_CAPTURE` JPEG → Base64 to JS → restore the
+  face-attention stream); JS side untouched. Chain now runs 111→138 green and
+  stops at v2.1.139 (photo-picker native module missing — same squash gap).
 
 ## The three load-bearing decisions
 
@@ -175,10 +182,15 @@ Our app's package is **`io.github.razor79.mylooi`** (the vendor app
 Device: UBS1, serial UBS1241115010673, Android 14, **locked landscape
 1600×720** (screenshot size, not `wm size`).
 
-Tests: `node scripts/v2.1.<NNN>-….test.mjs` individually. The full `npm test`
-chain is **broken at v2.1.137** — upstream v2.1.151 gutted the native
-`captureStill` while `src/vision/look-here.ts:44` still calls it (visual
-look-here is broken upstream; pre-existing, not ours).
+Tests: `node scripts/v2.1.<NNN>-….test.mjs` individually. The `npm test`
+chain had been **broken at v2.1.137** because the upstream v2.1.151 squash
+(`c9d94ce`) carried the JS side of visual look-here (types, `look-here.ts`,
+realtime interception, the v2.1.137/138 tests) but never brought the Kotlin
+`captureStill` over — the native half never existed in our tree, so
+`src/vision/look-here.ts:44` threw at runtime; v2.1.167 implements it. The
+chain now advances to v2.1.139, where the same squash gap surfaces for the
+photo-picker native module (`modules/photo-picker-access/…/PhotoPickerAccessModule.kt`
+missing) — next gap to fill, same pattern.
 
 After every install expect the **BLE recovery ladder**: the robot holds a
 dead link; 1–3 app restarts, then robot power cycle. Check the log before
@@ -195,7 +207,8 @@ usually recovers.
    app (its forward works), diff its writes against ours to find the enable
    command. v2.1.166's fail-open makes this a quality improvement, not a
    blocker.
-2. **Upstream bug reports** (not yet filed): the v2.1.137 chain break above;
+2. **Upstream bug reports** (not yet filed): the missing-native-`captureStill`
+   gap (fixed on our side in v2.1.167, still worth reporting upstream);
    anything else worth a PR (freeze fix, voice fixes, cancel semantics) —
    user undecided about upstreaming.
 3. **Deferred features**: Ark / Volcengine 豆包 realtime adapter (needs user
