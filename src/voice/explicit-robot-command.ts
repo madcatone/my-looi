@@ -16,17 +16,28 @@ export type ExplicitRobotCommandConfig = {
 
 // Narrow STT recovery aliases are accepted only in the address position and
 // still require the remainder to parse as a deterministic physical command.
-// "look"/"lewis"/"lou"/"luke"/"blue eye"/"zoe"/"dui"/"rui" are observed Gemini
-// transcriptions of the wake name (on-device: the same spoken "LOOI, …" came
-// back as "Look.", "Lewis,", "Louis,", "blue eye", "Zoe", "Dui", "Rui" on
-// consecutive attempts — nondeterministic across the /lu/-initial family).
-// Physical interception runs before the visual look-here parser, but "look"
-// only reaches the wheels when the remainder is itself a physical command —
-// "look here"/"look at this" still fall through to the visual path.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "lewis", "loui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
+// "look"/"lewis"/"lou"/"luke"/"blue eye"/"zoe"/"dui"/"rui"/"luis"/"lui"/
+// "robar" are observed Gemini transcriptions of the wake name (on-device: the
+// same spoken "LOOI, …" came back as "Look.", "Lewis,", "Louis,", "blue eye",
+// "Zoe", "Dui", "Rui", "Luis", "Lui", "robar" on consecutive attempts —
+// nondeterministic, no STT biasing available). ルイ (katakana) is
+// transliterated to "rui" in normalizeMatchText. Physical interception runs
+// before the visual look-here parser, but "look" only reaches the wheels when
+// the remainder is itself a physical command — "look here"/"look at this"
+// still fall through to the visual path.
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
-  return value.normalize("NFKC").toLocaleLowerCase().replace(/ё/g, "е").replace(/[’'`]/g, "").replace(/[^a-zа-яіїєґ0-9\s]/giu, " ").replace(/\s+/g, " ").trim();
+  return value.normalize("NFKC")
+    // Katakana ルイ is an observed Gemini transcription of the wake name
+    // (on-device: "ルイ go back"); transliterate before the script filter
+    // would strip it to whitespace.
+    .replace(/ルイ/gu, "rui")
+    .toLocaleLowerCase()
+    // English possessive clitic: "Robot's back" must address the robot, not
+    // produce the non-alias "robots" after apostrophe stripping.
+    .replace(/['’]s(?=\s|$)/gu, "")
+    .replace(/ё/g, "е").replace(/[’'`]/g, "").replace(/[^a-zа-яіїєґ0-9\s]/giu, " ").replace(/\s+/g, " ").trim();
 }
 
 function configuredAddresses(config?: ExplicitRobotCommandConfig): string[] {
