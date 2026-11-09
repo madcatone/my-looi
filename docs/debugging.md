@@ -162,3 +162,41 @@ declaring the robot "broken".
   v2.1.155's test now asserts the chain contains no stray quotes inside
   commands; prefer a structured edit (jq / node script) over sed for this
   line.
+
+## 2026-11-09 postscript: "forward never moves" — TOF silence vs sensor block
+
+Symptom: back/turn worked by voice, forward never moved, and the reply was
+"I couldn't do that". Diagnosis trail worth remembering:
+
+- **"I couldn't do that" is the LOCAL blocked ack**
+  (`realtime-physical-command.ts` `acknowledgementFor(…, false)`), not a cloud
+  refusal. It is indistinguishable by ear. When you hear it after a
+  `physical=explicit` verdict, the execution layer threw — check `[Diag]`
+  lines, not the model.
+- **`[Diag]` lines are in logcat since v2.1.166**
+  (`recordDiagnosticEvent` mirrors to console). Every execution-layer verdict
+  — `movement-blocked`, `sensor-warmup-timeout`, `sensor-safety-stop`,
+  `tof-state`, `move-start/stop`, `realtime-physical-command-finished ok=…` —
+  is now greppable live: `adb logcat | grep '\[Diag\] robot'`. Before v2.1.166
+  these lived only in the exportable archive (Settings → Diagnostics). Expect
+  ~2 Hz `pcm-uplink-level` noise; filter it out.
+- **Root cause of the forward block**: this robot unit never streams TOF —
+  zero `0e` FED9 frames across every capture since the 2026-08 calibration
+  (the sparse 3-byte `110100` / `02xxxx` frames are unknown-type, not TOF).
+  `computeSafety` required a decoded TOF reading for ANY forward motion, so
+  `tof-unknown` blocked forward permanently while back/turn (which never
+  consult TOF) kept moving. Forward had likely never worked by voice on this
+  unit; the vendor app drives it fine. v2.1.166 fails open for the
+  missing-data case only: a decoded obstacle still hard-blocks, cliff and
+  near-edge interlocks and the 700ms bound are unchanged.
+- **GATT write counts are not drive evidence**: `onWriteCharacteristic` lines
+  in logcat carry no characteristic or payload, and they include handshake
+  (FEDA/FEF0), head-gesture (FED1) and ambient-pivot writes. An early
+  forensic pass read "6 writes after a forward command" as a drive sequence;
+  it was the failure head-gesture plus handshake writes. Filter by nothing
+  available at the OS layer — if you need payloads, enable **Bluetooth HCI
+  snoop logging** in developer options and pull the bugreport.
+- **BLE after vendor-app use**: after driving the robot from the original
+  LOOI app, our app's connect can hang with no callback (dead link held on
+  the robot side). One app restart recovered it this time; the usual ladder
+  (1–3 restarts, then robot power cycle) applies.
