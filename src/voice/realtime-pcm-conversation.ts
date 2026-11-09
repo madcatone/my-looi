@@ -108,6 +108,12 @@ export class RealtimePcmConversationService {
   private toolCallsInFlight = 0;
   private localPhysicalCommandInFlight = false;
   private localVisualCommandInFlight = false;
+  // Turn-scoped suppression: a locally-executed command owns the turn. On
+  // Gemini the "cancel" translation is a no-op (clientContent would itself
+  // prompt a generation), so the model may still stream a reply to the
+  // command utterance AFTER the in-flight window closes. Drop every model
+  // output for the rest of this turn — until the next user transcript.
+  private suppressModelOutputUntilNextUserTranscript = false;
   private generationActive = false;
   private playbackActive = false;
   private playbackInterrupted = false;
@@ -231,6 +237,7 @@ export class RealtimePcmConversationService {
     this.toolCallsInFlight = 0;
     this.localPhysicalCommandInFlight = false;
     this.localVisualCommandInFlight = false;
+    this.suppressModelOutputUntilNextUserTranscript = false;
     this.lastCaptureRmsLogAt = 0;
     this.captureLevelWindowFrames = 0;
     this.captureLevelWindowEnergy = 0;
@@ -786,7 +793,7 @@ export class RealtimePcmConversationService {
       return;
     }
     if (type === "response.output_audio.delta") {
-      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight) return;
+      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight || this.suppressModelOutputUntilNextUserTranscript) return;
       const delta = String(event.delta ?? "");
       if (!delta) return;
       const itemId = String(event.item_id ?? "").trim();
@@ -811,13 +818,13 @@ export class RealtimePcmConversationService {
       return;
     }
     if (type === "response.output_audio_transcript.delta") {
-      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight) return;
+      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight || this.suppressModelOutputUntilNextUserTranscript) return;
       this.assistantTranscript += String(event.delta ?? "");
       useConversationStore.getState().setStreamingText(this.assistantTranscript);
       return;
     }
     if (type === "response.output_audio_transcript.done") {
-      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight) return;
+      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight || this.suppressModelOutputUntilNextUserTranscript) return;
       const transcript = String(event.transcript ?? "").trim();
       if (transcript) this.assistantTranscript = transcript;
       useConversationStore.getState().setStreamingText(this.assistantTranscript);
@@ -860,6 +867,9 @@ export class RealtimePcmConversationService {
       if (transcript && !this.userTranscriptItems.has(itemId)) {
         markRobotInteraction("realtime-pcm-transcript");
         this.userTranscriptItems.add(itemId);
+        // A new user utterance owns the turn: end turn-scoped model-output
+        // suppression from any previous locally-executed command.
+        this.suppressModelOutputUntilNextUserTranscript = false;
         const store = useConversationStore.getState();
         store.setCurrentTranscript(transcript);
         store.addMessage({ role: "user", content: transcript });
@@ -878,6 +888,7 @@ export class RealtimePcmConversationService {
         );
         if (physicalCommand) {
           this.localPhysicalCommandInFlight = true;
+          this.suppressModelOutputUntilNextUserTranscript = true;
           if (this.playbackActive) {
             this.playbackInterrupted = true;
             this.stopAndTruncatePlayback("local-physical-command");
@@ -893,6 +904,7 @@ export class RealtimePcmConversationService {
           const visualCommand = parseRealtimeVisualCommand(transcript, useUserStore.getState().preferences);
           if (visualCommand) {
             this.localVisualCommandInFlight = true;
+            this.suppressModelOutputUntilNextUserTranscript = true;
             if (this.playbackActive) {
               this.playbackInterrupted = true;
               this.stopAndTruncatePlayback("local-visual-command");
@@ -916,7 +928,7 @@ export class RealtimePcmConversationService {
       this.generationActive = false;
       this.responseDone = true;
       this.responseStatus = String(event.response?.status ?? "unknown");
-      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight) return;
+      if (this.localPhysicalCommandInFlight || this.localVisualCommandInFlight || this.suppressModelOutputUntilNextUserTranscript) return;
       const hasFunctionCall = Array.isArray(event.response?.output) &&
         event.response.output.some((item: any) => item?.type === "function_call");
       if (hasFunctionCall || this.toolCallsInFlight > 0) return;

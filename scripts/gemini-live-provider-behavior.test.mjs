@@ -83,10 +83,12 @@ assert.deepEqual(
   [{ realtimeInput: { audio: { data: "QUJD", mimeType: "audio/pcm;rate=16000" } } }]
 );
 
-// 4. Cancel interrupts via the documented turnComplete=true; truncate is server-side already.
+// 4. Cancel is client-side only (v2.1.164): clientContent IS user input in the
+// Live API, so a clientContent cancel would PROMPT a generation; the adapter
+// must emit nothing and the conversation layer suppresses the turn instead.
 assert.deepEqual(
   protocol.openAiEventToGeminiMessages({ type: "response.cancel" }, state, "m"),
-  [{ clientContent: { turns: [], turnComplete: true } }]
+  []
 );
 assert.deepEqual(
   protocol.openAiEventToGeminiMessages({ type: "conversation.item.truncate", item_id: "x", content_index: 0, audio_end_ms: 120 }, state, "m"),

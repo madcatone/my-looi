@@ -17,7 +17,9 @@
  * - The first client message must be the setup; later session updates cannot
  *   reconfigure a live session (docs: "first (and only in the first)").
  * - clientContent with turnComplete=true "unconditionally interrupts
- *   generation" — used to translate response.cancel.
+ *   generation" — but it also PROMPTS one (clientContent is user input), so
+ *   it must not be used to translate response.cancel; cancellation is
+ *   client-side (see openAiEventToGeminiMessages).
  * - serverContent.interrupted means the server already cut the model output
  *   and the client should stop and empty its playback queue.
  * - Transcription segments arrive incrementally; the final segment may carry
@@ -175,8 +177,15 @@ export function openAiEventToGeminiMessages(
   }
 
   if (type === "response.cancel") {
-    // turnComplete=true unconditionally interrupts current generation.
-    return [{ clientContent: { turns: [], turnComplete: true } }];
+    // There is no server-side cancel in the Live API, and the naive
+    // translation — clientContent with turnComplete=true — is NOT one:
+    // clientContent IS user input, so turnComplete=true tells the server
+    // "the user finished speaking, please respond", actively prompting a
+    // generation ("I can't turn left" after a locally-executed command).
+    // Cancellation is therefore entirely client-side: the conversation layer
+    // drops all model output for the rest of the turn
+    // (suppressModelOutputUntilNextUserTranscript).
+    return [];
   }
 
   if (type === "conversation.item.truncate") {
