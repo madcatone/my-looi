@@ -25,14 +25,22 @@ are intercepted locally from the input transcription, in this order:
 
 ## Addresses
 
-Built-in: `LOOI`, `Louie`, `Louis`, `Lewis`, `Loui`, `Looey`, `Look`, `Lou`,
-`Luke`, `Blue Eye`, `Robot`, `Max`, plus the Russian/Ukrainian family (`Луи`
-variants, `Макс`, `Робот`, …). The user's configured robot name and aliases
-are accepted alongside the built-ins (longest match wins). The English list
-is deliberately wide: Gemini Live has no STT
-biasing, and the same spoken "LOOI" transcribes nondeterministically across
-the /lu/-initial family (on-device logs for one utterance produced *Louis*,
-*Look* and *Lewis* on consecutive attempts). Aliases are only honored in the
+Built-in: `LOOI`, `Louie`, `Louis`, `Luis`, `Lewis`, `Loui`,
+`Lui`, `Looey`, `Look`, `Lou`, `Luke`, `Blue Eye`, `Zoe`, `Dui`, `Rui`,
+`Robar`, `Ruin`, `Lo es`, `Blue is`, `Blue East`, `Louise`, `Robot`, `Max`,
+plus the Russian/Ukrainian family (`Луи` variants, `Макс`, `Робот`, …).
+Observed on device but **not yet added** (paused by user decision,
+2026-11-09): `Luiz`, `Loius`. The
+user's configured robot name and aliases are accepted alongside the built-ins
+(longest match wins). The list is deliberately wide and grows with every
+on-device observation: Gemini Live has no STT biasing, and the same spoken
+"LOOI" transcribes nondeterministically across the /lu/-initial family
+(on-device logs for one utterance produced *Louis*, *Look* and *Lewis* on
+consecutive attempts; twenty-plus spellings have been observed through
+v2.1.165). Three normalization classes catch whole families without listing
+every spelling: katakana `ルイ` transliterates to `rui`; Latin diacritics
+NFD-fold (`Luís` → `luis`); the English possessive clitic is stripped
+(`Robot's back` → `robot back`). Aliases are only honored in the
 address position — `Look` behaves as an address solely when the remainder
 parses as a physical command, so `look here` / `look at this` still reach the
 visual look-here parser (which runs after physical interception). A glued
@@ -44,7 +52,15 @@ the remainder starts with a known command stem.
 After the address, polite lead-ins (`please`, `okay`, `ok`, and the Russian
 fillers `давай`, `окей`, …) are stripped, up to three in a row. `<verb>` is
 optional when the direction word stands alone: `LOOI, forward` and `LOOI, go
-forward` both work.
+forward` both work. Verbs match inflected forms too (v2.1.165): `LOOI turned
+left`, `LOOI went forward`, `LOOI drives back`, `LOOI turned around` all
+intercept — STT frequently returns past tense.
+
+Semantics worth knowing: the direction/verb patterns are **searched within
+the remainder**, not matched against the whole utterance — `Robot, turn left
+often in Spain` fires the turn. That is the deliberate trade for
+transcription noise resilience; the strict part of the gate is the address,
+not the tail.
 
 | Action | English | Notes |
 |---|---|---|
