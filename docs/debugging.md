@@ -80,6 +80,14 @@ tolerating one unrecognized leading word in front of an exact session
 imperative — the anchored grammar is the safety net, so unknown future
 variants are handled without another release.
 
+**Postscript (v2.1.159, same day)**: the user then chose to revert both the
+addressless imperatives (v2.1.154) and the tolerant strip (v2.1.158) in favor
+of a strict keyword gate — predictability over recall — keeping the alias
+family (now including zoe/dui) as the keyword. Both approaches were
+technically sound; the choice between them is a product decision, not a
+technical one. When tolerance vs. strictness is genuinely arguable, ask
+before shipping either.
+
 ## 4. BLE reconnect behaviors and the recovery ladder
 
 Observed robot/BLE facts:

@@ -32,10 +32,11 @@ for (const alias of ['"look"', '"lewis"', '"lou"', '"luke"']) {
 }
 
 // 2. The safety shape is unchanged: address still required at utterance start,
-//    emergency stop still global, in-session parser still full-utterance only.
+//    emergency stop still global. (The in-session parser this test once also
+//    asserted was reverted by design in v2.1.159; the strict gate is guarded
+//    by v2.1.159-strict-address-gate-regression.test.mjs.)
 assert.ok(parser.includes("if (normalized.startsWith(`${address} `))"));
 assert.ok(parser.includes("export function containsEmergencyStopWord"));
-assert.ok(parser.includes("export function parseSessionRobotCommand"));
 
 // 3. The npm test chain tail must stay valid shell: previous sed appends had
 //    embedded an escaped quote into the JSON string value, leaving shell

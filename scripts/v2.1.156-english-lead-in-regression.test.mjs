@@ -34,10 +34,10 @@ assert.ok(
 );
 
 // 3. Lead-in stripping stays bounded (address-at-start still mandatory,
-//    emergency stop still global, session parser untouched).
+//    emergency stop still global). (The in-session parser this test once also
+//    asserted was reverted by design in v2.1.159.)
 assert.ok(parser.includes("if (normalized.startsWith(`${address} `))"));
 assert.ok(parser.includes("export function containsEmergencyStopWord"));
-assert.ok(parser.includes("export function parseSessionRobotCommand"));
 assert.ok(parser.includes("for (let i = 0; i < 3; i += 1)"), "lead-in loop stays capped at 3 strips");
 
 console.log("v2.1.156 English lead-in regression: PASS");

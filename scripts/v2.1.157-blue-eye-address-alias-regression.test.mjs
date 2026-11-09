@@ -29,7 +29,6 @@ assert.ok(parser.includes('"blue eye"'), "BUILTIN_ADDRESS_ALIASES must include b
 // 2. The safety shape is unchanged.
 assert.ok(parser.includes("if (normalized.startsWith(`${address} `))"));
 assert.ok(parser.includes("export function containsEmergencyStopWord"));
-assert.ok(parser.includes("export function parseSessionRobotCommand"));
 
 // 3. Chain hygiene (carried from v2.1.155): this test must be in the chain,
 //    and the chain must not contain stray quotes inside commands.

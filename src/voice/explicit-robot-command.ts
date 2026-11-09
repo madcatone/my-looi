@@ -16,15 +16,14 @@ export type ExplicitRobotCommandConfig = {
 
 // Narrow STT recovery aliases are accepted only in the address position and
 // still require the remainder to parse as a deterministic physical command.
-// "look"/"lewis"/"lou"/"luke"/"blue eye" are observed/phonetic Gemini
-// transcriptions of the wake name (on-device: "LOOI, forward" came back as
-// "Look. Forward.", "Lewis, go forward.", "Louis, go forward.", and "LOOI
-// turn left" as "blue eye turn left" — the same utterance transcribes
-// nondeterministically across the /lu/-initial family). Physical
-// interception runs before the visual look-here parser, but "look" only
-// reaches the wheels when the remainder is itself a physical command —
+// "look"/"lewis"/"lou"/"luke"/"blue eye"/"zoe"/"dui" are observed Gemini
+// transcriptions of the wake name (on-device: the same spoken "LOOI, …" came
+// back as "Look.", "Lewis,", "Louis,", "blue eye", "Zoe", "Dui" on
+// consecutive attempts — nondeterministic across the /lu/-initial family).
+// Physical interception runs before the visual look-here parser, but "look"
+// only reaches the wheels when the remainder is itself a physical command —
 // "look here"/"look at this" still fall through to the visual path.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "lewis", "loui", "looey", "look", "lou", "luke", "blue eye", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "lewis", "loui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "макс", "max", "робот", "robot", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/ё/g, "е").replace(/[’'`]/g, "").replace(/[^a-zа-яіїєґ0-9\s]/giu, " ").replace(/\s+/g, " ").trim();
@@ -196,59 +195,6 @@ export function parseExplicitRobotCommand(text: string, config?: ExplicitRobotCo
     return { kind: "turn", direction: "right", degrees: 90 };
   }
 
-  return null;
-}
-
-/**
- * Addressless in-session commands. Inside an active realtime voice session the
- * user already tapped to open the microphone, so the wake gesture replaces the
- * spoken address — but users still expect "turn 180 degrees" to work mid-chat
- * (observed on the Gemini provider: addressless commands are the dominant
- * real-world phrasing, and every one of them previously fell through to the
- * LLM, which answers "I can only chat").
- *
- * Safety stays deterministic: accept ONLY whole-utterance verb-led imperatives,
- * so ordinary conversation cannot reach the wheels ("let's go forward with the
- * plan" fails the full match; "go ahead" passes). Bare directions and bare
- * numbers stay address-only — a standalone "right" or "180" answering a chat
- * question must never move the robot. English first because that is the
- * observed session language; ru/uk in-session forms can follow the same
- * full-utterance pattern when needed.
- */
-export function parseSessionRobotCommand(text: string, config?: ExplicitRobotCommandConfig): ExplicitRobotCommand | null {
-  void config; // signature mirrors the addressed parser; imperatives need no config
-  const command = stripNaturalCommandLeadIns(normalizeMatchText(normalizeKnownGluedRobotAddress(text)).replace(/^please\s+/i, "")).trim();
-  if (!command) return null;
-  const parsed = matchSessionImperative(command);
-  if (parsed) return parsed;
-  // STT renders the wake name nondeterministically ("Zoe", "Dui", "Look",
-  // "Lewis", "Blue Eye", … on consecutive attempts at the same utterance) and
-  // the family cannot be enumerated. When one unrecognized leading word is
-  // followed by an exact session imperative, treat the leading word as the
-  // mangled address. The full-utterance grammar remains the safety net:
-  // "honey go back to sleep" (extra words) and "Zoe 180" (no verb) still miss.
-  const rest = command.slice(command.indexOf(" ") + 1);
-  if (rest && rest !== command) return matchSessionImperative(rest);
-  return null;
-}
-
-function matchSessionImperative(command: string): ExplicitRobotCommand | null {
-  if (/^(?:turn|rotate|spin)\s+(?:left|right)(?:\s+please)?$/iu.test(command)) {
-    return { kind: "turn", direction: /(?:^|\s)left(?=$|\s)/iu.test(command) ? "left" : "right", degrees: 90 };
-  }
-  if (
-    /^(?:turn\s+around|turn\s+back\s+around|make\s+a\s+u\s*turn|u\s*turn)(?:\s+please)?$/iu.test(command) ||
-    /^(?:turn|rotate|spin)\s+(?:180|one\s+eighty|one\s+hundred(?:\s+and)?\s+eighty)(?:\s+degrees?)?(?:\s+please)?$/iu.test(command)
-  ) {
-    // Clockwise/right is the deterministic default for a 180° turn.
-    return { kind: "turn", direction: "right", degrees: 180 };
-  }
-  if (/^(?:go|drive|move)\s+(?:forward|ahead|straight)(?:\s+please)?$/iu.test(command)) {
-    return { kind: "move", direction: "forward" };
-  }
-  if (/^(?:go|drive|move|come)\s+(?:back|backward|reverse)(?:\s+please)?$/iu.test(command)) {
-    return { kind: "move", direction: "backward" };
-  }
   return null;
 }
 

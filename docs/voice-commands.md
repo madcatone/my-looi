@@ -12,13 +12,16 @@ During a realtime voice session (OpenAI Realtime or Gemini Live) the model has
 are intercepted locally from the input transcription, in this order:
 
 1. **Emergency stop** — global, no address needed, highest priority.
-2. **Addressed command** — utterance must start with a robot address
-   (`parseExplicitRobotCommand`).
-3. **In-session command** (v2.1.154) — inside a live session, whole-utterance
-   verb-led imperatives without an address (`parseSessionRobotCommand`).
-4. Anything else goes to the LLM, which will correctly answer that it can only
-   chat. If the robot "refuses to move", the utterance missed all three gates —
-   check the `[RealtimeCmd] transcript=… physical=…` console line in logcat.
+2. **Addressed command** — the utterance must start with a robot address
+   (`parseExplicitRobotCommand`). This is a strict keyword gate (user
+   decision, v2.1.159): without an address nothing triggers and the utterance
+   goes to the model. A hit executes the motion locally, cancels the model's
+   response (`response.cancel`), and acknowledges via local TTS — the cloud
+   model never answers a command.
+3. Anything else goes to the LLM, which will correctly answer that it can only
+   chat. If the robot "refuses to move", the utterance missed the address
+   gate — check the `[RealtimeCmd] transcript=… physical=…` console line in
+   logcat to see what the provider actually transcribed.
 
 ## Addresses
 
@@ -60,32 +63,15 @@ Non-movement physical commands use the same addressed shape: `sleep`
 (`go to sleep`, `fall asleep`), `dance`, `nod` (`nod your head`, optional
 count 1–5).
 
-## In-session commands (addressless)
+## Addressless utterances
 
-Inside an already-open voice session the wake gesture replaces the spoken
-address, so whole-utterance verb-led imperatives are accepted **without** one:
-
-- `go / drive / move` + `forward / ahead / straight`
-- `go / drive / move / come` + `back / backward / reverse`
-- `turn / rotate / spin` + `left / right`
-- `turn / rotate / spin` + `180 / one eighty / one hundred (and) eighty`
-  (optionally `+ degrees`)
-- `turn around`, `turn back around`, `make a u-turn`, `u-turn`
-
-Safety rules that keep this from firing on conversation:
-
-- The **entire utterance** must match — `let's go forward with the plan`
-  fails, `go forward` passes.
-- A verb is required — bare `right` or `forward` is not a command.
-- Bare numbers are rejected — answering `180` to a chat question never moves
-  the robot.
-- Custom phrases keep their addressed requirement even in-session.
-- Since v2.1.158, **one unrecognized leading word is tolerated** when the
-  remainder is an exact imperative (`Zoe go back` fires). STT renders the
-  wake name nondeterministically (louie/louis/look/lewis/blue eye/zoe/dui/…)
-  and the family cannot be enumerated. Exactly one word is stripped and the
-  remainder must still match the anchored grammar, so `honey go back to
-  sleep`, `Zoe 180` and `the dogs turn left` all still miss.
+Inside a voice session, an utterance **without** an accepted address never
+moves the robot — it goes to the model as conversation. (v2.1.154 briefly
+accepted addressless verb-led imperatives and v2.1.158 tolerated one
+unrecognized leading word; both were reverted by user decision in v2.1.159 in
+favor of a strict, predictable keyword gate. The alias family above is the
+keyword — "Zoe go back" works because `zoe` is an alias, not because unknown
+words are tolerated.)
 
 ## Emergency stop
 
