@@ -23,9 +23,10 @@ are intercepted locally from the input transcription, in this order:
 ## Addresses
 
 Built-in: `LOOI`, `Louie`, `Louis`, `Lewis`, `Loui`, `Looey`, `Look`, `Lou`,
-`Luke`, `Robot`, `Max`, plus the Russian/Ukrainian family (`Луи` variants,
-`Макс`, `Робот`, …). The user's configured robot name and aliases are
-accepted alongside the built-ins (longest match wins). The English list is deliberately wide: Gemini Live has no STT
+`Luke`, `Blue Eye`, `Robot`, `Max`, plus the Russian/Ukrainian family (`Луи`
+variants, `Макс`, `Робот`, …). The user's configured robot name and aliases
+are accepted alongside the built-ins (longest match wins). The English list
+is deliberately wide: Gemini Live has no STT
 biasing, and the same spoken "LOOI" transcribes nondeterministically across
 the /lu/-initial family (on-device logs for one utterance produced *Louis*,
 *Look* and *Lewis* on consecutive attempts). Aliases are only honored in the
