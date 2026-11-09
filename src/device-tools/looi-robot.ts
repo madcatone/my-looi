@@ -438,10 +438,16 @@ function computeSafety(direction?: LooiMoveDirection) {
     }
   }
 
-  if (safetyState === "safe" && direction === "forward" && state.sensors.obstacleNear === null) {
-    safetyState = "unknown";
-    reason = "tof-unknown";
-  } else if (safetyState === "safe" && direction === "forward" && state.sensors.obstacleNear) {
+  // v2.1.166 (user decision): a TOF that never reports must not paralyze
+  // forward. Some robot units' TOF stream stays silent for the whole
+  // connection (zero 0e frames across every capture since 2026-08); treating
+  // that silence as "unknown → block" made forward permanently unusable while
+  // back/turn — which never consult TOF — kept moving with the same absent
+  // sensor data. Fail open ONLY for the missing-data case: a decoded obstacle
+  // (obstacleNear === true) still hard-blocks forward, cliff and near-edge
+  // interlocks are unchanged, and emergency STOP stays global. The mid-motion
+  // TOF safety stop also remains armed in case the stream ever wakes up.
+  if (safetyState === "safe" && direction === "forward" && state.sensors.obstacleNear) {
     safetyState = "unsafe";
     reason = "obstacle";
   }

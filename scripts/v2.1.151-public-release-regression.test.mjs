@@ -7,9 +7,9 @@ const read = (path) => fs.readFileSync(path, "utf8");
 const pkg = JSON.parse(read("package.json"));
 const app = JSON.parse(read("app.json"));
 
-assert.equal(pkg.version, "2.1.164");
-assert.equal(app.expo.version, "2.1.164");
-assert.equal(app.expo.android.versionCode, 164);
+assert.equal(pkg.version, "2.1.166");
+assert.equal(app.expo.version, "2.1.166");
+assert.equal(app.expo.android.versionCode, 166);
 
 assert.ok(fs.existsSync("modules/photo-picker-access"));
 assert.ok(fs.existsSync("src/voice/realtime-visual-command.ts"));

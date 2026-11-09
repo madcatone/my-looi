@@ -35,8 +35,8 @@ assert.ok(parser.includes("|looi|louie|louis|loui|looey)(?="), "glued-address sp
 // 2. 180° word forms must cover "one hundred (and) eighty" with optional degrees,
 //    and every pre-existing form must survive.
 for (const fragment of [
-  "turn\\s+around",
-  "turn\\s+back\\s+around",
+  "turn(?:ed|s|ing)?\\s+around",
+  "turn(?:ed|s|ing)?\\s+back\\s+around",
   "u\\s*turn",
   "one\\s+eighty",
   "one\\s+hundred(?:\\s+and)?\\s+eighty",

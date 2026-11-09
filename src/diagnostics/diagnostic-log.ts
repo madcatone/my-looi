@@ -90,13 +90,22 @@ export function recordDiagnosticEvent(
   details: DiagnosticDetails = {}
 ): void {
   try {
+    const sanitized = sanitizeDetails(details);
+    // Mirror to logcat (same sanitization) so on-device diagnosis does not
+    // require exporting the archive: execution-layer verdicts such as
+    // movement-blocked / sensor-safety-stop / tof-state / command-finished
+    // were previously archive-only and invisible to adb logcat.
+    const mirrored = Object.entries(sanitized)
+      .map(([key, value]) => `${key}=${value}`)
+      .join(" ");
+    console.log(`[Diag] ${category} ${event}${mirrored ? ` ${mirrored}` : ""}`);
     const entries = readEntries();
     entries.push({
       id: nextId++,
       timestamp: new Date().toISOString(),
       category,
       event: event.slice(0, 120),
-      details: sanitizeDetails(details),
+      details: sanitized,
     });
     diagnosticStorage.set(STORAGE_KEY, JSON.stringify(entries.slice(-MAX_ENTRIES)));
   } catch (error) {
