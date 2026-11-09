@@ -216,9 +216,23 @@ export function parseExplicitRobotCommand(text: string, config?: ExplicitRobotCo
  * full-utterance pattern when needed.
  */
 export function parseSessionRobotCommand(text: string, config?: ExplicitRobotCommandConfig): ExplicitRobotCommand | null {
+  void config; // signature mirrors the addressed parser; imperatives need no config
   const command = stripNaturalCommandLeadIns(normalizeMatchText(normalizeKnownGluedRobotAddress(text)).replace(/^please\s+/i, "")).trim();
   if (!command) return null;
+  const parsed = matchSessionImperative(command);
+  if (parsed) return parsed;
+  // STT renders the wake name nondeterministically ("Zoe", "Dui", "Look",
+  // "Lewis", "Blue Eye", … on consecutive attempts at the same utterance) and
+  // the family cannot be enumerated. When one unrecognized leading word is
+  // followed by an exact session imperative, treat the leading word as the
+  // mangled address. The full-utterance grammar remains the safety net:
+  // "honey go back to sleep" (extra words) and "Zoe 180" (no verb) still miss.
+  const rest = command.slice(command.indexOf(" ") + 1);
+  if (rest && rest !== command) return matchSessionImperative(rest);
+  return null;
+}
 
+function matchSessionImperative(command: string): ExplicitRobotCommand | null {
   if (/^(?:turn|rotate|spin)\s+(?:left|right)(?:\s+please)?$/iu.test(command)) {
     return { kind: "turn", direction: /(?:^|\s)left(?=$|\s)/iu.test(command) ? "left" : "right", degrees: 90 };
   }
@@ -235,10 +249,6 @@ export function parseSessionRobotCommand(text: string, config?: ExplicitRobotCom
   if (/^(?:go|drive|move|come)\s+(?:back|backward|reverse)(?:\s+please)?$/iu.test(command)) {
     return { kind: "move", direction: "backward" };
   }
-
-  // Custom phrases keep their addressed requirement even in-session: without
-  // the address they are conversation text, not robot commands.
-  void config;
   return null;
 }
 

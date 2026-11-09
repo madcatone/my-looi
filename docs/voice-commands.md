@@ -80,6 +80,12 @@ Safety rules that keep this from firing on conversation:
 - Bare numbers are rejected — answering `180` to a chat question never moves
   the robot.
 - Custom phrases keep their addressed requirement even in-session.
+- Since v2.1.158, **one unrecognized leading word is tolerated** when the
+  remainder is an exact imperative (`Zoe go back` fires). STT renders the
+  wake name nondeterministically (louie/louis/look/lewis/blue eye/zoe/dui/…)
+  and the family cannot be enumerated. Exactly one word is stripped and the
+  remainder must still match the anchored grammar, so `honey go back to
+  sleep`, `Zoe 180` and `the dogs turn left` all still miss.
 
 ## Emergency stop
 

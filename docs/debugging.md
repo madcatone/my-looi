@@ -72,7 +72,13 @@ utterances intercepted and executed once the aliases landed).
 
 **Lesson**: a mandatory-address gate is a fine default, but once the user has
 performed an explicit wake gesture, that gesture *is* the address. Widen the
-gate at the session boundary, not by loosening the grammar.
+gate at the session boundary, not by loosening the grammar. And when the
+failure mode is "an external system mangles the same token differently every
+time", stop enumerating the manglings: after nine wake-name variants
+(louie/louis/look/lewis/lou/luke/blue eye/zoe/dui), v2.1.158 switched to
+tolerating one unrecognized leading word in front of an exact session
+imperative — the anchored grammar is the safety net, so unknown future
+variants are handled without another release.
 
 ## 4. BLE reconnect behaviors and the recovery ladder
 
