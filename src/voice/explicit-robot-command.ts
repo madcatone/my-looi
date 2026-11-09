@@ -26,7 +26,7 @@ export type ExplicitRobotCommandConfig = {
 // before the visual look-here parser, but "look" only reaches the wheels when
 // the remainder is itself a physical command — "look here"/"look at this"
 // still fall through to the visual path.
-const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "ruin", "макс", "max", "робот", "robot", "robots", "уи", "уй", "рога"];
+const BUILTIN_ADDRESS_ALIASES = ["луи", "луй", "луни", "луї", "луі", "лу и", "looi", "louie", "louis", "luis", "lewis", "loui", "lui", "looey", "look", "lou", "luke", "blue eye", "zoe", "dui", "rui", "robar", "ruin", "lo es", "blue is", "louise", "макс", "max", "робот", "robot", "robots", "уи", "уй", "рога"];
 
 function normalizeMatchText(value: string): string {
   return value.normalize("NFKC")
