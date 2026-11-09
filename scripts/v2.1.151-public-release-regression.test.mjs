@@ -7,9 +7,9 @@ const read = (path) => fs.readFileSync(path, "utf8");
 const pkg = JSON.parse(read("package.json"));
 const app = JSON.parse(read("app.json"));
 
-assert.equal(pkg.version, "2.1.167");
-assert.equal(app.expo.version, "2.1.167");
-assert.equal(app.expo.android.versionCode, 167);
+assert.equal(pkg.version, "2.1.168");
+assert.equal(app.expo.version, "2.1.168");
+assert.equal(app.expo.android.versionCode, 168);
 
 assert.ok(fs.existsSync("modules/photo-picker-access"));
 assert.ok(fs.existsSync("src/voice/realtime-visual-command.ts"));
@@ -25,7 +25,7 @@ assert.equal(
   crypto.createHash("sha256")
     .update(read("src/voice/realtime-pcm-conversation.ts"))
     .digest("hex"),
-  "f5514348acd9f18c16d73316d72f3a49bf88061e2a0493c03f901ab14779f3b3"
+  "20fc211bf3db47cec2971e7b6cdd83d360daa9774511be11571b740a8de12e1e"
 );
 
 assert.equal(

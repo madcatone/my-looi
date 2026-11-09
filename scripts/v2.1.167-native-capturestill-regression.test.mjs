@@ -56,11 +56,11 @@ assert.match(kotlin, /private fun isLowLightLikely\(exposureTimeNs: Long\?, sens
 
 // 5. Version ritual: 2.1.167 / 167 in all three places.
 const gradle = read("android/app/build.gradle");
-assert.match(pkg.version, /^2\.1\.167$/);
-assert.match(app.expo.version, /^2\.1\.167$/);
-assert.equal(app.expo.android.versionCode, 167);
-assert.match(gradle, /versionCode 167\b/);
-assert.match(gradle, /versionName "2\.1\.167"/);
+assert.match(pkg.version, /^2\.1\.168$/);
+assert.match(app.expo.version, /^2\.1\.168$/);
+assert.equal(app.expo.android.versionCode, 168);
+assert.match(gradle, /versionCode 168\b/);
+assert.match(gradle, /versionName "2\.1\.168"/);
 
 // 6. Chain hygiene: this test is in the npm test chain, with no stray quotes.
 assert.ok(pkg.scripts.test.includes("node scripts/v2.1.167-native-capturestill-regression.test.mjs"), "this test must be part of the npm test chain");

@@ -1004,6 +1004,13 @@ export class RealtimePcmConversationService {
         persistentFile: false,
       });
       this.localVisualCommandInFlight = false;
+      // The injected image item is itself a new user turn that owns the model's
+      // next response (same semantics as clearing on an audio transcript above).
+      // v2.1.164's turn-scoped suppression was set when the command was parsed —
+      // without this clear it also swallowed the model's description of the
+      // photo it was just asked to inspect (observed on device: five look-here
+      // commands, images sent, zero audible replies).
+      this.suppressModelOutputUntilNextUserTranscript = false;
       this.responseDone = false;
       this.responseStatus = "unknown";
       this.playbackInterrupted = false;
@@ -1018,6 +1025,8 @@ export class RealtimePcmConversationService {
         error: error instanceof Error ? error.message : String(error),
       });
       this.localVisualCommandInFlight = false;
+      // The fallback "I could not see it" response must be audible too.
+      this.suppressModelOutputUntilNextUserTranscript = false;
       this.responseDone = false;
       this.responseStatus = "unknown";
       this.playbackInterrupted = false;

@@ -39,7 +39,7 @@ function stripLeadIns(command: string): string {
   return value;
 }
 
-const BACK_CAMERA_RE = /(?:задн(?:ей|юю|ю|яя|я|ьою)\s+камер(?:ой|ою|у|а)|через\s+задн(?:юю|ю)\s+камеру|на\s+задн(?:юю|ю)\s+камеру|тильн(?:ою|у|а)\s+камер(?:ою|ой|у|а)|rear\s+camera|back\s+camera)/iu;
+const BACK_CAMERA_RE = /(?:задн(?:ей|юю|ю|яя|я|ьою)\s+камер(?:ой|ою|у|а)|через\s+задн(?:юю|ю)\s+камеру|на\s+задн(?:юю|ю)\s+камеру|тильн(?:ою|у|а)\s+камер(?:ою|ой|у|а)|rear\s+camera|back\s+camera|behind\s+(?:you|yourself))/iu;
 const FRONT_CAMERA_RE = /(?:фронтал(?:ьной|ьную|ка)|передн(?:ей|юю|яя)\s+камер(?:ой|у|а)|фронтальн(?:ою|у|а)\s+камер(?:ою|у|а)|front\s+camera|selfie\s+camera)/iu;
 
 function requestedCameraFacing(command: string): VisualCameraFacing {
