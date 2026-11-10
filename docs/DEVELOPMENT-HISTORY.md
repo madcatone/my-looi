@@ -14,9 +14,11 @@ ladder, adb/landscape, build/test traps). This file is the story and the map.
 - **Goal**: a switchable **Gemini Live** voice provider for the Realtime PCM
   path (the app originally spoke only the OpenAI Realtime protocol), plus
   reliable **voice-controlled robot movement**.
-- **Status as of 2026-11-09**: v2.1.166 installed and verified on device —
+- **Status as of 2026-11-10**: v2.1.169 installed and verified on device —
   forward/back/turn/180°/stop/nod/dance/sleep by voice, cloud replies
-  suppressed for locally-executed commands, chat still works normally.
+  suppressed for locally-executed commands, **visual look-here works
+  end-to-end** (front and back camera, model speaks the description), chat
+  still works normally.
 
 ## Where things live
 
@@ -103,6 +105,34 @@ ladder, adb/landscape, build/test traps). This file is the story and the map.
   face-attention stream); JS side untouched. Chain now runs 111→138 green and
   stops at v2.1.139 (photo-picker native module missing — same squash gap).
 
+### 2026-11-10 — visual look-here end to end
+
+- `09670c7` **v2.1.167 — native `captureStill`** (impl by subagent, verified
+  and shipped): first on-device round showed the photo pipeline working
+  (front 2560×1920 / back 3264×2448, image reaches the model) — but the
+  model stayed SILENT through five consecutive look-here commands.
+- `fd492bf` **v2.1.168 — the silent-description regression**: v2.1.164's
+  turn-scoped suppression (set when any local command parses) was never
+  cleared on the visual path — the injected image is `input_text`, so the
+  clear-on-audio-transcript branch never fired, and every output gate
+  dropped the model's description. Fix: clear the flag in
+  `executeLocalVisualCommand` (success **and** capture-failure paths) right
+  before `response.create` — the injected image IS a new user turn that owns
+  the response. Also: "look behind you" was shooting the FRONT camera
+  (`BACK_CAMERA_RE` only knew literal rear/back camera) — added
+  `behind you/yourself`. Verified on device: model speaks 6–7s descriptions,
+  behind-you uses the back lens.
+- `0d03638` **v2.1.169 — bare `Blue` alias**: on-device "blue look here"
+  missed the gate (family knew blue eye/is/east but not the bare form);
+  longest-match-first keeps the longer entries winning. Behavioral test
+  pins "blue look here" → front look-here.
+- `cd62aec` gitignore `modules/*/android/build/` — a `git add -A` had swept
+  1451 build artifacts into a commit; soft-reset and recommit, then guarded.
+- `f6e1f55` field note: the **silent Gemini session** failure mode (ws open,
+  server never VADs, closes `code=1000` empty-reason after ~2.5 min; app
+  relaunch revives it — see `debugging.md`). Initially misread as a
+  v2.1.169 regression; the rms stream proving the mic path was the tell.
+
 ## The three load-bearing decisions
 
 1. **Strict address gate (v2.1.159, user decision).** Wheel commands require
@@ -156,6 +186,9 @@ forward had likely never worked by voice on it). Full write-up in
 | 164 | `8668fa1` | **split-brain cancel fix + turn-scoped suppression** |
 | 165 | `58a5401` | Blue East + verb-tense inflections |
 | 166 | `bf37a19` | **TOF fail-open + `[Diag]` logcat mirror** |
+| 167 | `09670c7` | **native `captureStill`** (visual look-here finally runs) |
+| 168 | `fd492bf` | **clear reply suppression for visual** + behind-you back camera |
+| 169 | `0d03638` | bare `Blue` wake alias |
 
 Version ritual (since 154, apply to every change): bump `package.json` (via
 node JSON round-trip, never sed) + append the new test to the `"test"` chain;
@@ -208,14 +241,21 @@ usually recovers.
    command. v2.1.166's fail-open makes this a quality improvement, not a
    blocker.
 2. **Upstream bug reports** (not yet filed): the missing-native-`captureStill`
-   gap (fixed on our side in v2.1.167, still worth reporting upstream);
-   anything else worth a PR (freeze fix, voice fixes, cancel semantics) —
-   user undecided about upstreaming.
+   gap (fixed on our side in v2.1.167, still worth reporting upstream) and
+   the sibling photo-picker native module (139/140 still red); anything else
+   worth a PR (freeze fix, voice fixes, cancel semantics) — user undecided
+   about upstreaming.
 3. **Deferred features**: Ark / Volcengine 豆包 realtime adapter (needs user
    credentials); wiring more device APIs to voice (`setLooiHead`
    up/center/down, `setLooiLight`, duration words, dance styles — inventory
    in `looi-robot.ts` around :660–:1030); French grammar gap ("lui va").
-4. ~~Docs drift~~ closed 2026-11-09: `voice-commands.md` now covers the
+4. Small open items: bare-`Blue` alias shipped in v2.1.169 but the literal
+   phrase "blue look here" hasn't been re-spoken on device since the fix
+   (it was spoken once before, and missed — that observation is what
+   prompted the alias; behavioral test pins the fixed behavior); a debug
+   capture-to-file toggle for look-here photos exists only as an idea
+   (photos are in-memory by design).
+5. ~~Docs drift~~ closed 2026-11-09: `voice-commands.md` now covers the
    aliases through v2.1.165, verb inflections, and the word-search semantics
    of the addressed parser (plus the observed-but-unshipped `Luiz`/`Loius`
    note).
