@@ -203,3 +203,19 @@ Symptom: back/turn worked by voice, forward never moved, and the reply was
   LOOI app, our app's connect can hang with no callback (dead link held on
   the robot side). One app restart recovered it this time; the usual ladder
   (1–3 restarts, then robot power cycle) applies.
+
+## 2026-11-10 postscript: the silent Gemini session (not BLE, not quota)
+
+Symptom: app listening, mic fine (pcm-uplink rms shows normal speech
+bursts), WebSocket open — but zero `pcm-speech-started`/transcripts; the
+user talks to a brick. After ~2.5 min the server closes the socket
+`code=1000 reason=` (empty; contrast the session-duration GoAway, which is
+`code=1008` with an explicit reason). A fresh app relaunch opens a new
+session that works immediately — so it is a transient dead server-side
+session, not the API key's quota and not our code. Diagnosis trick: the
+`pcm-uplink-level` rms stream proves the mic path; if rms shows speech
+bursts while not one `speech-started` fires, the fault is upstream of VAD.
+Recovery: same ladder shape as BLE — restart the app, expect a fresh
+working session; don't debug your latest diff first (the 2026-11-10 round
+initially looked like a v2.1.169 regression; the startup log was
+line-identical to the working session minutes earlier).
