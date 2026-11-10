@@ -30,7 +30,8 @@ Built-in: `LOOI`, `Louie`, `Louis`, `Luis`, `Lewis`, `Loui`,
 `Robar`, `Ruin`, `Lo es`, `Blue is`, `Blue East`, `Louise`, `Robot`, `Max`,
 plus the Russian/Ukrainian family (`Луи` variants, `Макс`, `Робот`, …).
 Observed on device but **not yet added** (paused by user decision,
-2026-11-09): `Luiz`, `Loius`. The
+2026-11-09): `Luiz`, `Loius`, bare `Blue` (2026-11-10: "blue look here"
+missed the gate — only blue eye/blue is/blue east are aliases). The
 user's configured robot name and aliases are accepted alongside the built-ins
 (longest match wins). The list is deliberately wide and grows with every
 on-device observation: Gemini Live has no STT biasing, and the same spoken
